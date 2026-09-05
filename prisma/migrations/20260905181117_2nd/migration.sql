@@ -1,0 +1,2 @@
+-- CreateEnum
+CREATE TYPE "ActiveStatus" AS ENUM ('ACTIVE', 'SUSPENDED', 'DEACTIVATED');

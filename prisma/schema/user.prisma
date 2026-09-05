@@ -8,7 +8,7 @@ model User {
   gender            String?
   nationalIdNumber  String?
   profileImageUrl   String?
-  
+  status            ActiveStatus @default(ACTIVE)
   // Authentication
   googleId          String?   @unique
   authProvider      AuthProvider @default(CREDENTIAL)

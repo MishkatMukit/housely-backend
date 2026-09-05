@@ -44,7 +44,7 @@ const auth = (...requiredRoles: Role[]) => {
 
     req.user = {
       id: user.id,
-      name: user.name,
+      name: user.fullName,
       email: user.email,
       role: user.role,
     };
