@@ -1,0 +1,25 @@
+model Room {
+  id              String    @id @default(cuid())
+  propertyId      String
+  
+  roomNumber      String
+  roomType        String    // SINGLE, DOUBLE, SHARED, FLAT
+  description     String?
+  
+  rentAmount      Decimal   @db.Decimal(15, 2)
+  advanceAmount   Decimal   @db.Decimal(15, 2)
+  
+  status          RoomStatus @default(AVAILABLE)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  applications    Application[]
+  leases          Lease[]
+
+  @@index([propertyId])
+  @@index([status])
+  @@map("rooms")
+}

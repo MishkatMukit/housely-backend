@@ -1,0 +1,25 @@
+model Lease {
+  id        String      @id @default(uuid())
+  roomId    String
+  tenantId  String
+  ownerId   String
+  
+  amount    Decimal     @db.Decimal(15, 2)
+  startDate DateTime
+  endDate   DateTime
+  status    LeaseStatus @default(ACTIVE)
+  
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Relations
+  room      Room        @relation(fields: [roomId], references: [id])
+  tenant    Tenant      @relation(fields: [tenantId], references: [id])
+  owner     Owner       @relation(fields: [ownerId], references: [id])
+  payments  Payment[]
+
+  @@index([roomId])
+  @@index([tenantId])
+  @@index([ownerId])
+  @@map("leases")
+}

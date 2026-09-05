@@ -1,0 +1,49 @@
+enum Role {
+  TENANT
+  OWNER
+  ADMIN
+  SUPERADMIN
+}
+
+enum TenantStatus {
+  ACTIVE
+  INACTIVE
+}
+enum OwnerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+enum AuthProvider {
+  CREDENTIAL
+  GOOGLE
+}
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+  UNAVAILABLE
+}
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+enum PaymentType {
+  ADVANCE
+  MONTHLY_RENT
+}
+enum LeaseStatus {
+  PENDING      // lease created, awaiting advance payment
+  ACTIVE       // advance paid, lease is active
+  INACTIVE     // paused
+  COMPLETED    // lease ended normally
+  TERMINATED   // ended early
+  CANCELLED    // cancelled before activation
+}

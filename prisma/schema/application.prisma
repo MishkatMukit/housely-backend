@@ -1,0 +1,26 @@
+model Application {
+  id              String    @id @default(cuid())
+  tenantId        String
+  roomId          String
+  
+  monthlyIncome   Decimal?  @db.Decimal(15, 2)
+  employment      String?
+  message         String?
+  
+  status          ApplicationStatus @default(PENDING)
+  
+  // Documents as JSON
+  documents       Json?     // stores document metadata from Cloudinary
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  room            Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([roomId])
+  @@index([status])
+  @@map("applications")
+}

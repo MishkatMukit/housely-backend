@@ -1,0 +1,28 @@
+model Payment {
+  id              String        @id @default(uuid())
+  leaseId         String
+  tenantId        String
+  ownerId         String
+  
+  amount          Decimal       @db.Decimal(15, 2)
+  type            PaymentType
+  status          PaymentStatus
+  
+  bkashTransactionId String?
+  paymentMethod      String?
+  
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  lease           Lease         @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  tenant          Tenant        @relation("TenantPayments", fields: [tenantId], references: [id], onDelete: Cascade)
+  owner           Owner         @relation("OwnerPayments", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([leaseId])
+  @@index([tenantId])
+  @@index([ownerId])
+  @@index([status])
+  @@map("payments")
+}
