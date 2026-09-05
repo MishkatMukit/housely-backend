@@ -1,10 +1,17 @@
+import bcrypt from "bcryptjs";
 import type { IRegisterUserPayload } from "../../Interfaces/auth.interface";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
+import crypto from "crypto";
+import { redisClient } from "../../lib/redis";
+import path from "path";
+import ejs from "ejs";
+import { transporter } from "../../lib/nodemailer";
+import config from "../../config";
 
 const registerUser = async (payload: IRegisterUserPayload) => {
-	const { name, password} = payload;
+	const { name, password } = payload;
 
 	const email = payload.email.trim().toLowerCase();
 
@@ -16,34 +23,31 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		throw new AppError("User With This Email Already Exists", httpStatus.CONFLICT);
 	}
 
+	if (!redisClient.isOpen) {
+		await redisClient.connect();
+	}
+
 	const hashedPassword = await bcrypt.hash(password, 8);
 
 
 
 	const otpValue = crypto.randomInt(100000, 1000000);
-	const otpKey = `register-patient-otp:${email}`;
+	const otpKey = `register-user-otp:${email}`;
 
-	await redisClient.set(otpKey, otpValue, {
-		expiration: {
-			type: "EX",
-			value: 5 * 60
-		}
-	})
+	await redisClient.set(otpKey, String(otpValue), {
+		EX: 5 * 60,
+	});
 
-	const patientRegistrationData = `petient-registration-data:${email}`;
+	const userRegistrationData = `user-registration-data:${email}`;
 	const redisUserDataPayload = {
 		name,
 		email,
-		password: hashedPassword,
-		patient: patientData
+		password: hashedPassword
 	}
 
-	await redisClient.set(patientRegistrationData, JSON.stringify(redisUserDataPayload), {
-		expiration: {
-			type: "EX",
-			value: 5 * 60
-		}
-	})
+	await redisClient.set(userRegistrationData, JSON.stringify(redisUserDataPayload), {
+		EX: 5 * 60,
+	});
 
 	const templateData = {
 		name,
@@ -51,12 +55,16 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		otpValue,
 		expirationTime: "5 minutes"
 	}
-	const templatePath = path.join(process.cwd(), "src", "app", "templates", "register-patient.ejs");
+	const templatePath = path.join(process.cwd(), "src", "app", "templates", "register-user.ejs");
 	const html = await ejs.renderFile(templatePath, templateData);
 	await transporter.sendMail({
 		from: config.email_sender,
 		to: email,
-		subject: "Patient Registration OTP",
-		html
+		subject: "User Registration OTP",
+		html,
 	});
+};
+
+export const authService = {
+    registerUser
 };

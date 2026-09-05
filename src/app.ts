@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import config from "./app/config";
 import { globalErrorHandler } from "./app/middleware/globalErrorHandler";
 import { routeHandler } from "../src/app/middleware/notFound";
+import { authRoutes } from "./app/modules/auth/auth.route";
 
 const app: Application = express();
 
@@ -18,7 +19,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-app.use("api/users", userRoutes);
+app.use("/api/auth", authRoutes);
 
 app.get("/", async (req: Request, res: Response) => {
   res.json({

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome to Our Healthcare Platform</title>
+</head>
+
+<body style="margin:0; padding:0; background:#f4f8f7; font-family:Arial, Helvetica, sans-serif; color:#1f2937;">
+
+  <div style="max-width:600px; margin:40px auto; background:#ffffff; border-radius:16px; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+
+    <!-- Header -->
+    <div style="background:#0f766e; padding:32px 30px; text-align:center;">
+      <div style="font-size:28px; font-weight:700; color:#ffffff;">
+        Welcome
+      </div>
+      <div style="margin-top:8px; font-size:14px; color:#d1fae5;">
+        Your patient account is ready
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div style="padding:36px 30px;">
+
+      <h2 style="margin:0 0 14px; font-size:22px; color:#134e4a;">
+        Hello, <%= name %>
+      </h2>
+
+      <p style="margin:0 0 24px; font-size:15px; line-height:1.7; color:#4b5563;">
+        Welcome to our healthcare platform. Your patient registration has been
+        completed successfully, and your account is now ready to use.
+      </p>
+
+      <!-- Account Information -->
+      <div style="
+        background:#f0fdfa;
+        border:1px solid #ccfbf1;
+        border-radius:10px;
+        padding:18px;
+        margin-bottom:24px;
+      ">
+        <div style="
+          font-size:12px;
+          font-weight:700;
+          letter-spacing:0.5px;
+          color:#6b7280;
+          margin-bottom:12px;
+        ">
+          ACCOUNT INFORMATION
+        </div>
+
+        <div style="margin-bottom:6px;">
+          <span style="font-size:13px; color:#6b7280;">PATIENT NAME</span>
+          <div style="font-size:15px; font-weight:600; color:#134e4a; margin-top:3px;">
+            <%= name %>
+          </div>
+        </div>
+
+        <div>
+          <span style="font-size:13px; color:#6b7280;">EMAIL ADDRESS</span>
+          <div style="font-size:15px; font-weight:600; color:#134e4a; margin-top:3px;">
+            <%= email %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Success Message -->
+      <div style="
+        background:#ecfdf5;
+        border-left:4px solid #14b8a6;
+        border-radius:6px;
+        padding:16px;
+        margin-bottom:24px;
+      ">
+        <div style="
+          font-size:15px;
+          font-weight:700;
+          color:#0f766e;
+          margin-bottom:5px;
+        ">
+          Registration Successful
+        </div>
+
+        <div style="
+          font-size:14px;
+          line-height:1.6;
+          color:#4b5563;
+        ">
+          You can now access your patient account and manage your healthcare information securely.
+        </div>
+      </div>
+
+      <p style="margin:0; font-size:14px; line-height:1.7; color:#6b7280;">
+        We're committed to helping you stay connected with your healthcare journey.
+        Thank you for choosing our platform.
+      </p>
+
+    </div>
+
+    <!-- Footer -->
+    <div style="
+      background:#f8fafc;
+      border-top:1px solid #e5e7eb;
+      padding:20px;
+      text-align:center;
+      font-size:12px;
+      color:#9ca3af;
+    ">
+      Secure Patient Healthcare Management System
+    </div>
+
+  </div>
+
+</body>
+</html>
