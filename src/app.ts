@@ -1,10 +1,9 @@
 import express, { type Application, type Request, type Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import config from "./config";
-import { globalErrorHandler } from "./middleware/globalErrorHandler";
-import { routeHandler } from "./middleware/routerHandler";
-import { exampleRoutes } from "./modules/example/example.route";
+import config from "./app/config";
+import { globalErrorHandler } from "./app/middleware/globalErrorHandler";
+import { routeHandler } from "../src/app/middleware/notFound";
 
 const app: Application = express();
 
@@ -19,14 +18,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+app.use("api/users", userRoutes);
+
 app.get("/", async (req: Request, res: Response) => {
   res.json({
     message: "Server is running",
     author : "Mishakt Mahabub"
   });
 });
-
-app.use("/api/example", exampleRoutes);
 
 app.use(globalErrorHandler);
 app.use(routeHandler);
