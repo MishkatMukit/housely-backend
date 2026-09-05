@@ -4,7 +4,10 @@ enum Role {
   ADMIN
   SUPERADMIN
 }
-
+enum ActiveStatus {
+  ACTIVE
+  INACTIVE
+}
 enum TenantStatus {
   ACTIVE
   INACTIVE

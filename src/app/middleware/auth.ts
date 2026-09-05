@@ -6,7 +6,7 @@ import { jwtUtils } from "../utils/jwt";
 import type { JwtPayload } from "jsonwebtoken";
 import { prisma } from "../lib/prisma";
 
-const auth = (...requiredRoles: Role[]) => {
+const checkAuth = (...requiredRoles: Role[]) => {
   return catchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const token =
       req.cookies?.accessToken ||
@@ -53,4 +53,4 @@ const auth = (...requiredRoles: Role[]) => {
   });
 };
 
-export default auth;
+export default checkAuth;

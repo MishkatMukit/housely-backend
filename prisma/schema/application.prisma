@@ -1,5 +1,5 @@
 model Application {
-  id              String    @id @default(cuid())
+  id              String    @id @default(uuid())
   tenantId        String
   roomId          String
   
