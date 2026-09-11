@@ -7,7 +7,7 @@ enum Role {
 enum ActiveStatus {
   ACTIVE
   SUSPENDED
-  DEACTIVATED
+  DELETED
 }
 enum TenantStatus {
   ACTIVE

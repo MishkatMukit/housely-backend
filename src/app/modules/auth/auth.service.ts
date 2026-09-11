@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import type { IRegisterUserPayload } from "../../Interfaces/auth.interface";
+import type { IRegisterUserPayload, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
@@ -9,6 +9,7 @@ import path from "path";
 import ejs from "ejs";
 import { transporter } from "../../lib/nodemailer";
 import config from "../../config";
+import { ActiveStatus } from "../../../generated/prisma/enums";
 
 const registerUser = async (payload: IRegisterUserPayload) => {
 	const { name, password } = payload;
@@ -64,6 +65,48 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		html,
 	});
 };
+const verifyUserEmail = async(payload : IVerifyUserEmailPayload) => {
+	const email = payload.email.trim().toLowerCase();
+
+	const isUserExists = await prisma.user.findUnique({
+		where: { email },
+	});
+	if(isUserExists?.status === ActiveStatus.SUSPENDED){
+		throw new AppError("User is suspended", httpStatus.FORBIDDEN);
+	}
+	if(isUserExists?.emailVerified){
+		throw new AppError("User email is already verified", httpStatus.BAD_REQUEST);
+	}
+	const otp = payload.otp.trim();
+	const otpKey = `register-user-otp:${email}`;
+	const storedOtp = await redisClient.get(otpKey);
+	if(!storedOtp){
+		throw new AppError("OTP Expired. Please Request New OTP", httpStatus.BAD_REQUEST);
+	}
+	if(storedOtp !== otp){
+		throw new AppError("Invalid OTP", httpStatus.BAD_REQUEST);
+	}
+	await redisClient.del(otpKey);
+
+	const redisUserData = await redisClient.get(`user-registration-data:${email}`);
+
+	if(!redisUserData){
+		throw new AppError("Registration data expired. Please register again.", httpStatus.BAD_REQUEST);
+	}
+	const parsedData = JSON.parse(redisUserData);
+
+	const createdUser = await prisma.user.create({
+		data:{
+			name : parsedData.name,
+			email : parsedData.email,
+			password : parsedData.hashedPassword
+		},
+		create:{
+			
+		}
+	})
+
+}
 
 export const authService = {
     registerUser

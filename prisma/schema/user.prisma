@@ -1,8 +1,8 @@
 model User {
   id                String    @id @default(uuid())
   email             String    @unique
-  passwordHash      String?   // optional, null if OAuth
-  fullName          String
+  password      String?   // optional, null if OAuth
+  name              String
   phoneNumber       String?
   address           String?
   gender            String?
