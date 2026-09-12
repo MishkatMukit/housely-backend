@@ -9,7 +9,8 @@ import path from "path";
 import ejs from "ejs";
 import { transporter } from "../../lib/nodemailer";
 import config from "../../config";
-import { ActiveStatus } from "../../../generated/prisma/enums";
+import { ActiveStatus, Role } from "../../../generated/prisma/enums";
+import { jwtUtils } from "../../utils/jwt";
 
 const registerUser = async (payload: IRegisterUserPayload) => {
 	const { name, password } = payload;
@@ -65,49 +66,92 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		html,
 	});
 };
-const verifyUserEmail = async(payload : IVerifyUserEmailPayload) => {
+const verifyUserEmail = async (payload: IVerifyUserEmailPayload) => {
 	const email = payload.email.trim().toLowerCase();
 
 	const isUserExists = await prisma.user.findUnique({
 		where: { email },
 	});
-	if(isUserExists?.status === ActiveStatus.SUSPENDED){
+	if (isUserExists?.status === ActiveStatus.SUSPENDED) {
 		throw new AppError("User is suspended", httpStatus.FORBIDDEN);
 	}
-	if(isUserExists?.emailVerified){
+	if (isUserExists?.emailVerified) {
 		throw new AppError("User email is already verified", httpStatus.BAD_REQUEST);
 	}
 	const otp = payload.otp.trim();
 	const otpKey = `register-user-otp:${email}`;
 	const storedOtp = await redisClient.get(otpKey);
-	if(!storedOtp){
+	if (!storedOtp) {
 		throw new AppError("OTP Expired. Please Request New OTP", httpStatus.BAD_REQUEST);
 	}
-	if(storedOtp !== otp){
+	if (storedOtp !== otp) {
 		throw new AppError("Invalid OTP", httpStatus.BAD_REQUEST);
 	}
 	await redisClient.del(otpKey);
 
 	const redisUserData = await redisClient.get(`user-registration-data:${email}`);
 
-	if(!redisUserData){
+	if (!redisUserData) {
 		throw new AppError("Registration data expired. Please register again.", httpStatus.BAD_REQUEST);
 	}
 	const parsedData = JSON.parse(redisUserData);
 
 	const createdUser = await prisma.user.create({
-		data:{
-			name : parsedData.name,
-			email : parsedData.email,
-			password : parsedData.hashedPassword
+		data: {
+			name: parsedData.name,
+			email: parsedData.email,
+			password: parsedData.hashedPassword,
+			status: ActiveStatus.ACTIVE,
+			emailVerified: true,
+			role: Role.TENANT,
+			tenant: {
+				create: {
+					email: parsedData.email,
+					name: parsedData.name,
+					contactNumber: parsedData.tenant?.contactNumber || null,
+				}
+			}
 		},
-		create:{
-			
+		omit: {
+			password: true,
+
+		},
+		include: {
+			tenant: true
 		}
 	})
+	await redisClient.del(`user-registration-data:${email}`);
 
+	const { tenant, ...user } = createdUser;
+	const JwtPayload = {
+		userid: user.id,
+		name: user.name,
+		email: user.email,
+		role: user.role
+	}
+
+	const accessToken = await jwtUtils.createToken(JwtPayload, config.jwt_access_secret, config.jwt_access_expires_in);
+
+	const refreshToken = await jwtUtils.createToken(JwtPayload, config.jwt_refresh_secret, config.jwt_refresh_expires_in);
+
+	const templatePath = path.join(process.cwd(), "../src/app/templates/login-success.ejs")
+	const html = await ejs.renderFile(templatePath, { name: user.name, email: user.email })
+
+	await transporter.sendMail({
+		from: config.email_sender,
+		to: email,
+		subject: "Registration Successful",
+		html,
+	});
+	return {
+		user: createdUser,
+		accessToken,
+		refreshToken,
+	};
 }
 
+
 export const authService = {
-    registerUser
+	registerUser,
+	verifyUserEmail,
 };
