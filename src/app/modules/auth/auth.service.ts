@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import type { IRegisterUserPayload, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
+import type { ILoginUserPayload, IRegisterUserPayload, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
@@ -9,7 +9,7 @@ import path from "path";
 import ejs from "ejs";
 import { transporter } from "../../lib/nodemailer";
 import config from "../../config";
-import { ActiveStatus, Role } from "../../../generated/prisma/enums";
+import { UserStatus, Role } from "../../../generated/prisma/enums";
 import { jwtUtils } from "../../utils/jwt";
 
 const registerUser = async (payload: IRegisterUserPayload) => {
@@ -72,8 +72,8 @@ const verifyUserEmail = async (payload: IVerifyUserEmailPayload) => {
 	const isUserExists = await prisma.user.findUnique({
 		where: { email },
 	});
-	if (isUserExists?.status === ActiveStatus.SUSPENDED) {
-		throw new AppError("User is suspended", httpStatus.FORBIDDEN);
+	if (isUserExists?.status === UserStatus.BLOCKED) {
+		throw new AppError("User is blocked", httpStatus.FORBIDDEN);
 	}
 	if (isUserExists?.emailVerified) {
 		throw new AppError("User email is already verified", httpStatus.BAD_REQUEST);
@@ -101,7 +101,7 @@ const verifyUserEmail = async (payload: IVerifyUserEmailPayload) => {
 			name: parsedData.name,
 			email: parsedData.email,
 			password: parsedData.hashedPassword,
-			status: ActiveStatus.ACTIVE,
+			status: UserStatus.ACTIVE,
 			emailVerified: true,
 			role: Role.TENANT,
 			tenant: {
@@ -144,14 +144,76 @@ const verifyUserEmail = async (payload: IVerifyUserEmailPayload) => {
 		html,
 	});
 	return {
-		user: createdUser,
+		user,
+		tenant,
 		accessToken,
 		refreshToken,
 	};
 }
+const loginUser = async (payload: ILoginUserPayload) => {
+	const { password } = payload;
+	const email = payload.email.trim().toLowerCase();
+
+	const user = await prisma.user.findUnique({
+		where: { email },
+	});
+
+	if (!user) {
+		throw new AppError("User Not Found", httpStatus.NOT_FOUND);
+	}
+
+	if (user.status === UserStatus.BLOCKED) {
+		throw new AppError("User Is Blocked", httpStatus.FORBIDDEN);
+	}
+
+	if (user.status === UserStatus.DELETED) {
+		throw new AppError("User Is Deleted", httpStatus.FORBIDDEN);
+	}
+
+	if (user.password === null && user.googleId !== null) {
+		throw new AppError(
+			"Account Already Registered With Google",
+			httpStatus.BAD_REQUEST,
+		);
+	}
+
+	const isPasswordMatched = await bcrypt.compare(
+		password,
+		user.password as string,
+	);
+
+	if (!isPasswordMatched) {
+		throw new AppError("Invalid Credentials", httpStatus.UNAUTHORIZED);
+	}
+
+	const jwtPayload = {
+		userId: user.id,
+		name: user.name,
+		email: user.email,
+		role: user.role,
+	};
+
+	const accessToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_access_secret,
+		config.jwt_access_expires_in,
+	);
+
+	const refreshToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_refresh_secret,
+		config.jwt_refresh_expires_in,
+	);
+
+	return {
+		accessToken,
+		refreshToken,
+	};
+};
 
 
 export const authService = {
 	registerUser,
 	verifyUserEmail,
+	loginUser
 };

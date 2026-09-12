@@ -7,3 +7,7 @@ export interface IVerifyUserEmailPayload {
     email: string;
     otp: string;
 }
+export interface ILoginUserPayload {
+    email: string;
+    password: string;
+}
