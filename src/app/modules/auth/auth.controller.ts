@@ -1,6 +1,9 @@
 import type { Request, Response } from "express";
 import catchAsync from "../../utils/catchAsync";
 import { authService } from "./auth.service";
+import type { IRequestUser } from "../../Interfaces/auth.interface";
+import { AppError } from "../../utils/appError";
+import httpStatus from "http-status";
 
 const registerUser = catchAsync(async (req: Request, res: Response) => {
     const payload = req.body;
@@ -31,9 +34,24 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
         data: result,
     });
 })
+const getMe = catchAsync(async (req: Request, res: Response) => {
+    const user = req.user as unknown as IRequestUser;
+
+    if (!user) {
+        throw new AppError("User Information Is Missing In The Request", httpStatus.BAD_REQUEST);
+    }
+    const result = await authService.getMe(user);
+
+    res.status(200).json({
+        status: "success",
+        message: "User profile fetched successfully",
+        data: result,
+    });
+});
 
 export const authController = {
     registerUser,
     verifyUserEmail,
-    loginUser
+    loginUser,
+    getMe
 };

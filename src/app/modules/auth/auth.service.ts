@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import type { ILoginUserPayload, IRegisterUserPayload, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
+import type { ILoginUserPayload, IRegisterUserPayload, IRequestUser, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
@@ -211,9 +211,30 @@ const loginUser = async (payload: ILoginUserPayload) => {
 	};
 };
 
+const getMe = async (user: IRequestUser) => {
+	const isUserExists = await prisma.user.findUnique({
+		where: {
+			id: user.userId,
+		},
+		include: {
+			tenant: true,
+		},
+		omit: {
+			password: true,
+		},
+	});
+
+	if (!isUserExists) {
+		throw new AppError("User Not Found", httpStatus.NOT_FOUND);
+	}
+
+	return isUserExists;
+};
+
 
 export const authService = {
 	registerUser,
 	verifyUserEmail,
-	loginUser
+	loginUser,
+	getMe
 };
