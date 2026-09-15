@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import type { IForgotPassword, IGoogleLoginPayload, ILoginUserPayload, IRegisterUserPayload, IRequestUser, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
+import type { IForgotPassword, IGoogleLoginPayload, ILoginUserPayload, IRegisterUserPayload, IRequestUser, IResetPassword, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
@@ -457,6 +457,60 @@ const forgotPassword = async (payload: IForgotPassword) => {
 		html,
 	});
 }
+const resetPassword = async (payload: IResetPassword) => {
+	const { email, newPassword } = payload;
+	const otp = String(payload.otp || "").trim();
+
+	const isUserExist = await prisma.user.findUnique({
+		where: {
+			email,
+		},
+	});
+	if (!isUserExist) {
+		throw new AppError("User Not Found", httpStatus.NOT_FOUND);
+	}
+	if (isUserExist.status === UserStatus.BLOCKED) {
+		throw new AppError("User Is Blocked", httpStatus.FORBIDDEN);
+	}
+	if (isUserExist.emailVerified === false) {
+		throw new AppError("Email Not Verified", httpStatus.FORBIDDEN);
+	}
+	if (isUserExist.isDeleted || isUserExist.status === UserStatus.DELETED) {
+		throw new AppError("User Is Deleted", httpStatus.FORBIDDEN);
+	}
+	if (isUserExist.googleId && isUserExist.authProvider === AuthProvider.GOOGLE) {
+		throw new AppError("Account Already Registered With Google", httpStatus.BAD_REQUEST);
+	}
+
+	const storedOtp = await redisClient.get(`forgot-password-otp:${email}`);
+	if (!storedOtp) {
+		throw new AppError("OTP Expired. Please Request New OTP", httpStatus.BAD_REQUEST);
+	}
+	if (storedOtp !== otp) {
+		throw new AppError("Invalid OTP", httpStatus.BAD_REQUEST);
+	}
+	const hashedPassword = await bcrypt.hash(newPassword, Number(config.bcrypt_salt_rounds));
+
+	const updatedUser = await prisma.user.update({
+		where: {
+			email: isUserExist.email,
+		},
+		data: {
+			password: hashedPassword,
+		},
+	});
+	await redisClient.del([`forgot-password-otp:${email}`]);
+	const templatePath = path.join(process.cwd(), "../src/app/templates/reset-password.ejs");
+
+	const html = await ejs.renderFile(templatePath, { email });
+
+	await transporter.sendMail({
+		from: config.email_sender,
+		to: updatedUser.email,
+		subject: "Password Reset Successful",
+		html,
+	});
+};
 export const authService = {
 	registerUser,
 	verifyUserEmail,
@@ -464,5 +518,6 @@ export const authService = {
 	getMe,
 	refreshToken,
 	googleLogin,
-	forgotPassword
+	forgotPassword,
+	resetPassword
 };
