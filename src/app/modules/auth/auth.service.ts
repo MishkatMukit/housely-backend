@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import type { ILoginUserPayload, IRegisterUserPayload, IRequestUser, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
+import type { IGoogleLoginPayload, ILoginUserPayload, IRegisterUserPayload, IRequestUser, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
@@ -9,8 +9,11 @@ import path from "path";
 import ejs from "ejs";
 import { transporter } from "../../lib/nodemailer";
 import config from "../../config";
-import { UserStatus, Role } from "../../../generated/prisma/enums";
+import { UserStatus, Role, AuthProvider } from "../../../generated/prisma/enums";
 import { jwtUtils } from "../../utils/jwt";
+import type { JwtPayload } from "jsonwebtoken";
+import type { TokenPayload } from "google-auth-library";
+import { googleClient } from "../../lib/googleAuth";
 
 const registerUser = async (payload: IRegisterUserPayload) => {
 	const { name, password } = payload;
@@ -230,11 +233,194 @@ const getMe = async (user: IRequestUser) => {
 
 	return isUserExists;
 };
+const refreshToken = async (token: string) => {
+	const verifiedRefreshToken = jwtUtils.verifyToken(
+		token,
+		config.jwt_refresh_secret,
+	);
 
+	if (!verifiedRefreshToken.success || !verifiedRefreshToken.data) {
+		throw new AppError(
+			config.node_env === "development"
+				? verifiedRefreshToken.error
+				: "Invalid refresh token",
+			httpStatus.UNAUTHORIZED,
+		);
+	}
 
+	const data = verifiedRefreshToken.data as JwtPayload;
+
+	const user = await prisma.user.findUnique({
+		where: { id: data.userId },
+	});
+
+	if (!user || user.isDeleted || user.status !== UserStatus.ACTIVE) {
+		throw new AppError("User Is Inactive Or Not Found", httpStatus.UNAUTHORIZED);
+	}
+
+	const jwtPayload = {
+		userId: user.id,
+		name: user.name,
+		email: user.email,
+		role: user.role,
+	};
+
+	const accessToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_access_secret,
+		config.jwt_access_expires_in,
+	);
+
+	const refreshToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_refresh_secret,
+		config.jwt_refresh_expires_in,
+	);
+
+	return {
+		accessToken,
+		refreshToken,
+	};
+};
+const googleLogin = async (payload: IGoogleLoginPayload) => {
+	let googleIdTokenPayload: TokenPayload | null | undefined = null;
+	try {
+		const ticket = await googleClient.verifyIdToken({
+			idToken: payload.idToken,
+			audience: config.google_client_id,
+		});
+
+		googleIdTokenPayload = ticket.getPayload();
+	} catch (error) {
+		console.log("Google ID Token Verification Failed", error);
+		throw new AppError("Invalid Or Expired Google ID Token", httpStatus.UNAUTHORIZED);
+	}
+
+	if (!googleIdTokenPayload) {
+		throw new AppError("Invalid Or Expired Google ID Token", httpStatus.UNAUTHORIZED);
+	}
+
+	if (!googleIdTokenPayload.email) {
+		throw new AppError("Google Email Not Found", httpStatus.BAD_REQUEST);
+	}
+	if (!googleIdTokenPayload.name) {
+		throw new AppError("Google User Name Not Found", httpStatus.BAD_REQUEST);
+	}
+
+	const ifTenantExistWithGoogleAuth = await prisma.user.findUnique({
+		where: {
+			email: googleIdTokenPayload.email,
+			role: Role.TENANT,
+			googleId: googleIdTokenPayload.sub,
+		},
+	});
+
+	let user = ifTenantExistWithGoogleAuth;
+
+	if (!ifTenantExistWithGoogleAuth) {
+		const ifTenantExistWithCredentials = await prisma.user.findUnique({
+			where: {
+				email: googleIdTokenPayload.email,
+				role: Role.TENANT,
+				authProvider: AuthProvider.CREDENTIAL,
+			},
+		});
+
+		if (ifTenantExistWithCredentials) {
+			if (!ifTenantExistWithCredentials.emailVerified) {
+				throw new AppError("Email Not Verified", httpStatus.FORBIDDEN);
+			}
+
+			if (ifTenantExistWithCredentials.status === UserStatus.BLOCKED) {
+				throw new AppError("User Is Blocked", httpStatus.FORBIDDEN);
+			}
+
+			if (
+				ifTenantExistWithCredentials.isDeleted ||
+				ifTenantExistWithCredentials.status === UserStatus.DELETED
+			) {
+				throw new AppError("User Is Deleted", httpStatus.FORBIDDEN);
+			}
+
+			user = await prisma.user.update({
+				where: {
+					id: ifTenantExistWithCredentials.id,
+				},
+
+				data: {
+					googleId: googleIdTokenPayload.sub,
+				},
+			});
+		} else {
+			// Google Register
+			user = await prisma.user.create({
+				data: {
+					name: googleIdTokenPayload.name,
+					email: googleIdTokenPayload.email,
+					role: Role.TENANT,
+					googleId: googleIdTokenPayload.sub,
+					authProvider: AuthProvider.GOOGLE,
+					emailVerified: true,
+					tenant: {
+						create: {
+							name: googleIdTokenPayload.name,
+							email: googleIdTokenPayload.email,
+						},
+					},
+				},
+			});
+			const templatePath = path.join(process.cwd(), "src", "app", "templates", "welcome-patient.ejs");
+			const html = await ejs.renderFile(templatePath, { name: user.name, email: user.email });
+			await transporter.sendMail({
+				from: config.email_sender,
+				to: user.email,
+				subject: "Welcome to Healthcare",
+				html
+			});
+		}
+	}
+
+	if (!user) {
+		throw new AppError("User Not Found", httpStatus.NOT_FOUND);
+	}
+
+	if (user.status === UserStatus.BLOCKED) {
+		throw new AppError("User Is Blocked", httpStatus.FORBIDDEN);
+	}
+
+	if (user.isDeleted || user.status === UserStatus.DELETED) {
+		throw new AppError("User Is Deleted", httpStatus.FORBIDDEN);
+	}
+
+	const jwtPayload = {
+		userId: user.id,
+		name: user.name,
+		email: user.email,
+		role: user.role,
+	};
+
+	const accessToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_access_secret,
+		config.jwt_access_expires_in,
+	);
+
+	const refreshToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_refresh_secret,
+		config.jwt_refresh_expires_in,
+	);
+
+	return {
+		accessToken,
+		refreshToken,
+	};
+};
 export const authService = {
 	registerUser,
 	verifyUserEmail,
 	loginUser,
-	getMe
+	getMe,
+	refreshToken,
+	googleLogin
 };
