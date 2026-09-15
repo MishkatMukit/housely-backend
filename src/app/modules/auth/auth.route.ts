@@ -11,4 +11,6 @@ router.post("/login", authController.loginUser);
 router.get("/me", checkAuth(Role.ADMIN, Role.TENANT, Role.OWNER, Role.SUPERADMIN), authController.getMe);
 router.post("/refresh-token", checkAuth(), authController.refreshToken)
 router.post("/google", authController.googleLogin);
+router.post("/forgot-password", authController.forgotPassword);
+
 export const authRoutes = router;

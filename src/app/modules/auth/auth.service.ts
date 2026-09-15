@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import type { IGoogleLoginPayload, ILoginUserPayload, IRegisterUserPayload, IRequestUser, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
+import type { IForgotPassword, IGoogleLoginPayload, ILoginUserPayload, IRegisterUserPayload, IRequestUser, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
@@ -369,12 +369,12 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 					},
 				},
 			});
-			const templatePath = path.join(process.cwd(), "src", "app", "templates", "welcome-patient.ejs");
+			const templatePath = path.join(process.cwd(), "../src/app/templates/welcome-user.ejs");
 			const html = await ejs.renderFile(templatePath, { name: user.name, email: user.email });
 			await transporter.sendMail({
 				from: config.email_sender,
 				to: user.email,
-				subject: "Welcome to Healthcare",
+				subject: "Welcome to Housely",
 				html
 			});
 		}
@@ -416,11 +416,53 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 		refreshToken,
 	};
 };
+const forgotPassword = async (payload: IForgotPassword) => {
+	const { email } = payload;
+	const isUserExist = await prisma.user.findUnique({
+		where: {
+			email
+		}
+	})
+	if (!isUserExist) {
+		throw new AppError("User Not Found", httpStatus.NOT_FOUND)
+	}
+	if (isUserExist.status === UserStatus.BLOCKED) {
+		throw new AppError("User Is Blocked", httpStatus.FORBIDDEN)
+	}
+	if (isUserExist.emailVerified === false) {
+		throw new AppError("Email Not Verified", httpStatus.FORBIDDEN)
+	}
+	if (isUserExist.isDeleted || isUserExist.status === UserStatus.DELETED) {
+		throw new AppError("User Is Deleted", httpStatus.FORBIDDEN)
+	}
+	if (isUserExist.googleId && isUserExist.authProvider === AuthProvider.GOOGLE) {
+		throw new AppError("Account Already Registered With Google", httpStatus.BAD_REQUEST)
+	}
+	const otp = crypto.randomInt(100000, 1000000)
+
+	await redisClient.set(`forgot-password-otp:${email}`, otp.toString(), {
+		expiration: {
+			type: "EX",
+			value: 5 * 60
+		}
+	})
+	const templatePath = path.join(process.cwd(), "../src/app/templates/forgot-password.ejs");
+
+	const html = await ejs.renderFile(templatePath, { otp, email });
+
+	await transporter.sendMail({
+		from: config.email_sender,
+		to: email,
+		subject: "Password Reset OTP",
+		html,
+	});
+}
 export const authService = {
 	registerUser,
 	verifyUserEmail,
 	loginUser,
 	getMe,
 	refreshToken,
-	googleLogin
+	googleLogin,
+	forgotPassword
 };
