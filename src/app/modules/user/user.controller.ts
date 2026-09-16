@@ -59,7 +59,7 @@ const listUsers = catchAsync(async (req: Request, res: Response) => {
 const getUserById = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
 
-    const result = await userService.getUserById(id);
+    const result = await userService.getUserById(id as string);
 
     sendResponse(res, {
         statusCode: httpStatus.OK,
@@ -69,9 +69,51 @@ const getUserById = catchAsync(async (req: Request, res: Response) => {
     });
 })
 
+const blockUser = catchAsync(async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    const result = await userService.blockUser(id as string);
+
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: "User blocked successfully",
+        data: result,
+    });
+})
+
+const unblockUser = catchAsync(async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    const result = await userService.unblockUser(id as string);
+
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: "User unblocked successfully",
+        data: result,
+    });
+})
+
+const deleteUser = catchAsync(async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    const result = await userService.deleteUser(id as string);
+
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: "User deleted successfully",
+        data: result,
+    });
+})
+
 export const userController = {
     uploadProfileImage,
     getUserProfile,
     getUserById,
     listUsers,
+    blockUser,
+    unblockUser,
+    deleteUser,
 }

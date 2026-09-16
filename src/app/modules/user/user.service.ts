@@ -152,9 +152,88 @@ const getUserById = async (userId: string) => {
     return user;
 };
 
+const blockUser = async (userId: string) => {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+    });
+
+    if (!user) {
+        throw new AppError("User Not Found", httpStatus.NOT_FOUND);
+    }
+
+    if (user.status === UserStatus.BLOCKED) {
+        throw new AppError("User Is Already Blocked", httpStatus.CONFLICT);
+    }
+
+    const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+            status: UserStatus.BLOCKED,
+        },
+        omit: {
+            password: true,
+        },
+    });
+
+    return updatedUser;
+};
+
+const unblockUser = async (userId: string) => {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+    });
+
+    if (!user) {
+        throw new AppError("User Not Found", httpStatus.NOT_FOUND);
+    }
+
+    if (user.status !== UserStatus.BLOCKED) {
+        throw new AppError("User Is Not Blocked", httpStatus.CONFLICT);
+    }
+
+    const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+            status: UserStatus.ACTIVE,
+        },
+        omit: {
+            password: true,
+        },
+    });
+
+    return updatedUser;
+};
+
+const deleteUser = async (userId: string) => {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+    });
+
+    if (!user) {
+        throw new AppError("User Not Found", httpStatus.NOT_FOUND);
+    }
+
+    await prisma.user.update({
+        where: { id: userId },
+        data: {
+            status: UserStatus.DELETED,
+            isDeleted: true,
+            deletedAt: new Date(),
+        },
+    });
+
+    return {
+        id: userId,
+        message: "User Deleted Successfully",
+    };
+};
+
 export const userService = {
     uploadProfileImage,
     getUserProfile,
     getUserById,
     listUsers,
+    blockUser,
+    unblockUser,
+    deleteUser,
 }
