@@ -51,24 +51,22 @@ export const globalErrorHandler = async (
 	} else if (err instanceof Prisma.PrismaClientUnknownRequestError) {
 		statusCode = httpStatus.INTERNAL_SERVER_ERROR;
 		errorMessage = "Error occurred during query execution";
-	}else if(err instanceof AppError){
+	} else if (err instanceof AppError) {
+		// AppError is intentional — always expose its message and statusCode
 		errorMessage = err.message;
 		statusCode = err.statusCode;
-	}
-	else if (err instanceof Error) {
+	} else if (err instanceof Error) {
 		errorMessage = err.message;
 	}
+
+	const isDev = config.node_env === "development";
 
 	res.status(statusCode).json({
 		success: false,
 		statusCode,
-		name:
-			config.node_env === "development" ? errorName : "Internal Server Error",
-		message:
-			config.node_env === "development"
-				? errorMessage
-				: "Internal Server Error",
-		error: config.node_env === "development" ? err : undefined,
-		stack: config.node_env === "development" ? err.stack : undefined,
+		name: isDev ? errorName : err instanceof AppError ? err.name : "Internal Server Error",
+		message: isDev ? errorMessage : err instanceof AppError ? err.message : "Internal Server Error",
+		error: isDev ? err : undefined,
+		stack: isDev ? err.stack : undefined,
 	});
 };

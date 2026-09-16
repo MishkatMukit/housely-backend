@@ -1,0 +1,13 @@
+$kind: http-request
+url: http://localhost:5000/api/auth/me
+method: GET
+body:
+  type: json
+  content: "{\r
+
+    \    \"email\" : \"mahabubmishkat8@gmail.com\",\r
+
+    \    \"otp\": \"901661\"\r
+
+    }"
+order: 4503453390108934

@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { ActiveStatus, type Role } from "../../generated/prisma/enums";
+import { UserStatus, type Role } from "../../generated/prisma/enums";
 import catchAsync from "../utils/catchAsync";
 import config from "../config";
 import { jwtUtils } from "../utils/jwt";
@@ -38,13 +38,13 @@ const checkAuth = (...requiredRoles: Role[]) => {
       throw new Error("User not found. Please login again.");
     }
 
-    if (user.status === ActiveStatus.SUSPENDED) {
+    if (user.status === UserStatus.BLOCKED) {
       throw new Error("Your account has been suspended. Please contact support.");
     }
 
     req.user = {
       id: user.id,
-      name: user.fullName,
+      name: user.name,
       email: user.email,
       role: user.role,
     };

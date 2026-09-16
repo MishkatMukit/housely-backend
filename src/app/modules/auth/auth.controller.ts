@@ -21,16 +21,48 @@ const registerUser = catchAsync(async (req: Request, res: Response) => {
 const verifyUserEmail = catchAsync(async (req: Request, res: Response) => {
     const payload = req.body;
     const result = await authService.verifyUserEmail(payload);
+
+    const { accessToken, refreshToken } = result;
+
+    res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "none",
+        maxAge: 1000 * 60 * 60 * 24, // 24 hours
+    });
+    res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "none",
+        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    });
+
     sendResponse(res, {
         statusCode: httpStatus.OK,
         success: true,
-        message: "Email verified successfully",
+        message: "Email verified successfully. Welcome aboard!",
         data: result,
     });
 })
 const loginUser = catchAsync(async (req: Request, res: Response) => {
     const payload = req.body;
     const result = await authService.loginUser(payload);
+
+    const { accessToken, refreshToken } = result;
+
+    res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "none",
+        maxAge: 1000 * 60 * 60 * 24, // 24 hours
+    });
+    res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "none",
+        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    });
+
     sendResponse(res, {
         statusCode: httpStatus.OK,
         success: true,

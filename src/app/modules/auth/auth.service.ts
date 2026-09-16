@@ -103,7 +103,7 @@ const verifyUserEmail = async (payload: IVerifyUserEmailPayload) => {
 		data: {
 			name: parsedData.name,
 			email: parsedData.email,
-			password: parsedData.hashedPassword,
+			password: parsedData.password,
 			status: UserStatus.ACTIVE,
 			emailVerified: true,
 			role: Role.TENANT,
@@ -137,7 +137,7 @@ const verifyUserEmail = async (payload: IVerifyUserEmailPayload) => {
 
 	const refreshToken = await jwtUtils.createToken(JwtPayload, config.jwt_refresh_secret, config.jwt_refresh_expires_in);
 
-	const templatePath = path.join(process.cwd(), "../src/app/templates/login-success.ejs")
+	const templatePath = path.join(process.cwd(), "src", "app", "templates", "welcome-user.ejs")
 	const html = await ejs.renderFile(templatePath, { name: user.name, email: user.email })
 
 	await transporter.sendMail({
@@ -369,7 +369,7 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 					},
 				},
 			});
-			const templatePath = path.join(process.cwd(), "../src/app/templates/welcome-user.ejs");
+			const templatePath = path.join(process.cwd(), "src", "app", "templates", "welcome-user.ejs");
 			const html = await ejs.renderFile(templatePath, { name: user.name, email: user.email });
 			await transporter.sendMail({
 				from: config.email_sender,
@@ -446,7 +446,7 @@ const forgotPassword = async (payload: IForgotPassword) => {
 			value: 5 * 60
 		}
 	})
-	const templatePath = path.join(process.cwd(), "../src/app/templates/forgot-password.ejs");
+	const templatePath = path.join(process.cwd(), "src", "app", "templates", "forgot-password.ejs");
 
 	const html = await ejs.renderFile(templatePath, { otp, email });
 
@@ -500,7 +500,7 @@ const resetPassword = async (payload: IResetPassword) => {
 		},
 	});
 	await redisClient.del([`forgot-password-otp:${email}`]);
-	const templatePath = path.join(process.cwd(), "../src/app/templates/reset-password.ejs");
+	const templatePath = path.join(process.cwd(), "src", "app", "templates", "reset-password.ejs");
 
 	const html = await ejs.renderFile(templatePath, { email });
 

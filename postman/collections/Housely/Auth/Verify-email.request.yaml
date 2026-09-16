@@ -1,0 +1,13 @@
+$kind: http-request
+url: http://localhost:5000/api/auth/verify-email
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"email\" : \"mahabubmishkat8@gmail.com\",\r
+
+    \    \"otp\": \"901661\"\r
+
+    }"
+order: 3419475916505377
