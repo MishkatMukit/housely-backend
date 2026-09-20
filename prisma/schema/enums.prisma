@@ -27,6 +27,11 @@ enum AuthProvider {
   GOOGLE
 }
 
+enum Gender {
+  MALE
+  FEMALE
+}
+
 enum RoomStatus {
   AVAILABLE
   OCCUPIED

@@ -1,5 +1,6 @@
 
 import type { Role } from "../../generated/prisma/enums";
+import type { UserStatus } from "../../generated/prisma/enums";
 
 declare global {
   namespace Express {
@@ -13,8 +14,6 @@ declare global {
     }
   }
 }
-
-import type { UserStatus } from "../../generated/prisma/enums";
 
 export interface IListUsersQuery {
   page?: number;
