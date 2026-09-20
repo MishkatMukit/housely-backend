@@ -4,7 +4,7 @@ import { prisma } from "../../lib/prisma"
 import { AppError } from "../../utils/appError"
 import { UserStatus } from "../../../generated/prisma/enums"
 import httpStatus from "http-status"
-import type { IListUsersQuery, IListUsersResponse } from "../../Interfaces/user.interface"
+import type { IListUsersQuery, IListUsersResponse, IUpdateProfilePayload } from "../../Interfaces/user.interface"
 
 const uploadProfileImage = async (buffer: Buffer, userId: string) => {
 
@@ -212,8 +212,32 @@ const deleteUser = async (userId: string) => {
     };
 };
 
+const updateUserProfile = async (
+    userId: string,
+    payload: IUpdateProfilePayload
+) => {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+    });
+
+    if (!user || user.isDeleted || user.status === UserStatus.DELETED) {
+        throw new AppError("User Not Found", httpStatus.NOT_FOUND);
+    }
+
+    const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: payload,
+        omit: {
+            password: true,
+        },
+    });
+
+    return updatedUser;
+};
+
 export const userService = {
     uploadProfileImage,
+    updateUserProfile,
     getUserById,
     listUsers,
     blockUser,
