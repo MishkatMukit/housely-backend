@@ -10,8 +10,6 @@ model Owner {
   reviewedBy        String?
   reviewedAt        DateTime?
   
-  companyName       String?
-  
   averageRating     Float?
   totalReviews      Int         @default(0)
   

@@ -1,13 +1,13 @@
 import type { OwnerStatus } from "../../generated/prisma/enums";
 
 export interface IApplyOwnerPayload {
-    contactNumber?: string | undefined;
-    companyName?: string | undefined;
+    contactNumber: string;
+    address: string;
+    nationalIdNumber: string;
 }
 
 export interface IUpdateOwnerProfilePayload {
     contactNumber?: string;
-    companyName?: string;
 }
 
 export interface IApproveOwnerPayload {

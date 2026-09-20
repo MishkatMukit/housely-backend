@@ -27,10 +27,14 @@ const applyAsOwner = catchAsync(async (req: Request, res: Response) => {
     }
     const result = await ownerService.applyAsOwner(userId, payload, verificationFiles);
 
+    const isReapplication = (result as { status?: string }).status === "PENDING" && result.updatedAt.getTime() !== result.createdAt.getTime();
+
     sendResponse(res, {
-        statusCode: httpStatus.OK,
+        statusCode: httpStatus.CREATED,
         success: true,
-        message: "Your application as owner has been submitted successfully.",
+        message: isReapplication
+            ? "Your owner application has been resubmitted successfully."
+            : "Your application as owner has been submitted successfully.",
         data: result,
     });
 });

@@ -3,8 +3,9 @@ import { OwnerStatus } from "../../../generated/prisma/enums";
 
 const applyAsOwnerSchema = z
   .object({
-    contactNumber: z.string().trim().min(6).max(20).optional(),
-    companyName: z.string().trim().min(2).max(100).optional(),
+    contactNumber: z.string().trim().min(6).max(20),
+    address: z.string().trim().min(5).max(255),
+    nationalIdNumber: z.string().trim().min(4).max(50),
   })
   .strict();
 
@@ -35,7 +36,6 @@ const rejectOwnerSchema = z
 const updateOwnerProfileSchema = z
   .object({
     contactNumber: z.string().trim().min(6).max(20).optional(),
-    companyName: z.string().trim().min(2).max(100).optional(),
   })
   .strict()
   .refine((data) => Object.keys(data).length > 0, {

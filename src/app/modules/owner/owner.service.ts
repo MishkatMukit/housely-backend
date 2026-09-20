@@ -2,28 +2,9 @@ import { ApplicationStatus, LeaseStatus, OwnerStatus, Role, TenantStatus, UserSt
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
-import type { IApplyOwnerPayload } from "../../Interfaces/owner.interface";
-import { v2 as cloudinary, type UploadApiResponse } from "cloudinary";
-
-interface IUpdateOwnerProfilePayload {
-    contactNumber?: string;
-    companyName?: string;
-}
-
-interface IApproveOwnerPayload {
-    approvalNotes?: string;
-}
-
-interface IRejectOwnerPayload {
-    rejectionReason: string;
-}
-
-interface IListOwnersQuery {
-    page?: number;
-    limit?: number;
-    status?: OwnerStatus;
-    search?: string;
-}
+import type { IApplyOwnerPayload, IApproveOwnerPayload, IListOwnersQuery, IRejectOwnerPayload, IUpdateOwnerProfilePayload } from "../../Interfaces/owner.interface";
+import type { UploadApiResponse } from "cloudinary";
+import { cloudinary } from "../../lib/cloudinary";
 
 const applyAsOwner = async (userId: string, payload: IApplyOwnerPayload, verificationFiles: Express.Multer.File[]) => {
     const user = await prisma.user.findUnique({
@@ -42,48 +23,110 @@ const applyAsOwner = async (userId: string, payload: IApplyOwnerPayload, verific
         where: { userId },
     });
 
-    if (existingOwner) {
-        throw new AppError("Owner application already exists for this user", httpStatus.CONFLICT);
+    if (existingOwner?.status === OwnerStatus.PENDING) {
+        throw new AppError("Your owner application is already under review", httpStatus.CONFLICT);
     }
+
+    if (existingOwner?.status === OwnerStatus.APPROVED) {
+        throw new AppError("You are already an approved owner", httpStatus.CONFLICT);
+    }
+
+    const oldPublicIds: string[] =
+        existingOwner?.status === OwnerStatus.REJECTED
+            ? (((existingOwner.verificationDocuments as unknown as { publicId?: string }[] | null) ?? [])
+                .map((d) => d?.publicId)
+                .filter((id): id is string => typeof id === "string" && id.length > 0))
+            : [];
 
     const uploadedResults: UploadApiResponse[] = [];
     try {
-        for (const file of verificationFiles) {
-            const result = await new Promise<UploadApiResponse>((resolve, reject) => {
-                cloudinary.uploader.upload_stream(
-                    {
-                        resource_type: "auto"
-                    },
-                    async (error: any, result) => {
-                        if (error) {
-                            return reject(error)
-                        }
-                        if (!result) {
-                            return reject(new AppError("File Upload Failed", httpStatus.INTERNAL_SERVER_ERROR))
-                        }
-                        resolve(result)
-                    }).end(file?.buffer)
+        const uploadOne = (file: Express.Multer.File) =>
+            new Promise<UploadApiResponse>((resolve, reject) => {
+                cloudinary.uploader
+                    .upload_stream(
+                        {
+                            resource_type: "auto",
+                            folder: `housely/owner-verifications/${userId}`,
+                        },
+                        (error, result) => {
+                            if (error) return reject(error);
+                            if (!result) {
+                                return reject(
+                                    new AppError("File Upload Failed", httpStatus.INTERNAL_SERVER_ERROR),
+                                );
+                            }
+                            resolve(result);
+                        },
+                    )
+                    .end(file?.buffer);
             });
-            uploadedResults.push(result);
+        uploadedResults.push(...(await Promise.all(verificationFiles.map(uploadOne))));
+
+        const documents = uploadedResults.map(result => ({
+            url: result.secure_url,
+            publicId: result.public_id
+        }));
+
+        const [ownerApplication] = existingOwner
+            ? await prisma.$transaction([
+                prisma.owner.update({
+                    where: { userId },
+                    data: {
+                        status: OwnerStatus.PENDING,
+                        contactNumber: payload.contactNumber.trim(),
+                        verificationDocuments: documents,
+                        rejectionReason: null,
+                        reviewedBy: null,
+                        reviewedAt: null,
+                    },
+                    include: {
+                        user: { omit: { password: true } },
+                    },
+                }),
+                prisma.user.update({
+                    where: { id: userId },
+                    data: {
+                        address: payload.address.trim(),
+                        nationalIdNumber: payload.nationalIdNumber.trim(),
+                    },
+                }),
+            ])
+            : await prisma.$transaction([
+                prisma.owner.create({
+                    data: {
+                        userId,
+                        status: OwnerStatus.PENDING,
+                        contactNumber: payload.contactNumber.trim(),
+                        verificationDocuments: documents,
+                    },
+                    include: {
+                        user: { omit: { password: true } },
+                    },
+                }),
+                prisma.user.update({
+                    where: { id: userId },
+                    data: {
+                        address: payload.address.trim(),
+                        nationalIdNumber: payload.nationalIdNumber.trim(),
+                    },
+                }),
+            ]);
+
+        // Re-application replaces old docs — delete the superseded files (best-effort)
+        if (oldPublicIds.length > 0) {
+            await Promise.all(
+                oldPublicIds.map((publicId) => cloudinary.uploader.destroy(publicId).catch(() => null)),
+            );
         }
 
-        const ownerApplication = await prisma.owner.create({
-            data: {
-                userId,
-                status: OwnerStatus.PENDING,
-                ...(payload.contactNumber && { contactNumber: payload.contactNumber.trim() }),
-                ...(payload.companyName && { companyName: payload.companyName.trim() }),
-                verificationDocuments: uploadedResults.map(result => ({
-                    url: result.secure_url,
-                    publicId: result.public_id
-                })),
-            },
-            include: {
-                user: { omit: { password: true } },
-            },
+        // Re-read so the nested user reflects the synced address / NID
+        // (the include inside the transaction snapshots the user before its update)
+        const freshApplication = await prisma.owner.findUnique({
+            where: { userId },
+            include: { user: { omit: { password: true } } },
         });
 
-        return ownerApplication;
+        return freshApplication ?? ownerApplication;
     } catch (error) {
         // Roll back uploaded files so a failed application leaves no orphans
         await Promise.all(
@@ -119,9 +162,8 @@ const listOwners = async (query: IListOwnersQuery) => {
 
     if (query.search) {
         whereCondition.OR = [
-            { user: { email: { contains: query.search, mode: "insensitive" } } },
             { user: { name: { contains: query.search, mode: "insensitive" } } },
-            { companyName: { contains: query.search, mode: "insensitive" } },
+            { user: { email: { contains: query.search, mode: "insensitive" } } },
         ];
     }
 
@@ -222,7 +264,6 @@ const updateOwnerProfile = async (userId: string, payload: IUpdateOwnerProfilePa
         where: { userId },
         data: {
             ...(payload.contactNumber && { contactNumber: payload.contactNumber }),
-            ...(payload.companyName && { companyName: payload.companyName }),
         },
     });
 

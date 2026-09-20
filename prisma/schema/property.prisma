@@ -8,6 +8,7 @@ model Property {
   city            String
   district        String
   postalCode      String?
+  companyName     String?
   
   totalRooms      Int
   
