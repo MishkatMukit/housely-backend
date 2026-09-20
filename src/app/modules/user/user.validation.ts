@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Gender, Role, UserStatus } from "../../../generated/prisma/enums";
+import { Role, UserStatus } from "../../../generated/prisma/enums";
 
 const listUsersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -17,7 +17,7 @@ const updateProfileSchema = z
   .object({
     name: z.string().trim().min(2, "Name must be at least 2 characters").max(100).optional(),
     address: z.string().trim().min(1).optional(),
-    gender: z.enum(Gender).optional(),
+    gender: z.enum(["MALE", "FEMALE"]).optional(), // TODO: switch to z.enum(Gender) after Gender migration
     nationalIdNumber: z.string().trim().min(1).max(50).optional(),
   })
   .strict()

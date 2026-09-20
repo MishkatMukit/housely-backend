@@ -23,7 +23,7 @@ app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/owners", ownerRoutes);
+app.use("/api/owner", ownerRoutes);
 
 app.get("/", async (req: Request, res: Response) => {
   res.json({

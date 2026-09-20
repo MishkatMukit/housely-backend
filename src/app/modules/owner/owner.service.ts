@@ -1,16 +1,9 @@
-import { ApplicationStatus, LeaseStatus, OwnerStatus, Role, TenantStatus } from "../../../generated/prisma/enums";
+import { ApplicationStatus, LeaseStatus, OwnerStatus, Role, TenantStatus, UserStatus } from "../../../generated/prisma/enums";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
 import type { IApplyOwnerPayload } from "../../Interfaces/owner.interface";
 import { v2 as cloudinary, type UploadApiResponse } from "cloudinary";
-import bcrypt from "bcryptjs";
-import config from "../../config";
-import crypto from "crypto";
-import { redisClient } from "../../lib/redis";
-import path from "path";
-import ejs from "ejs";
-import { transporter } from "../../lib/nodemailer";
 
 interface IUpdateOwnerProfilePayload {
     contactNumber?: string;
@@ -32,95 +25,72 @@ interface IListOwnersQuery {
     search?: string;
 }
 
-const applyAsOwner = async (payload: IApplyOwnerPayload, additionalFiles: Express.Multer.File[]) => {
-    const isUserExist = await prisma.user.findUnique({
-        where: {
-            email: payload.user.email
-        }
-    })
-    if (isUserExist) {
-        throw new AppError("User With This Email Already Exists", httpStatus.CONFLICT);
-    }
-
-    const additionalFilesUploadResults = await Promise.all(additionalFiles.map(file => {
-        return new Promise<UploadApiResponse>((resolve, reject) => {
-            cloudinary.uploader.upload_stream(
-                {
-                    resource_type: "auto"
-                },
-                async (error: any, result) => {
-                    if (error) {
-                        return reject(error)
-                    }
-                    if (!result) {
-                        return reject(new AppError("File Upload Failed", httpStatus.INTERNAL_SERVER_ERROR))
-                    }
-                    resolve(result)
-                }).end(file?.buffer)
-
-        })
-    }))
-
-    const randomPassword = Math.random().toString(36).slice(-8);
-    const hashedPassword = await bcrypt.hash(randomPassword, Number(config.bcrypt_salt_rounds));
-
-    const ownerApplication = await prisma.user.create({
-        data: {
-            ...payload.user,
-            password: hashedPassword,
-            role: Role.OWNER,
-            owner: {
-                create: {
-                    ...payload.owner,
-                    status: OwnerStatus.PENDING,
-                    verificationDocuments: additionalFilesUploadResults.map(result => ({
-                        url: result.secure_url,
-                        publicId: result.public_id
-                    }))
-                }
-            }
-
-        },
-        include: {
-            owner: true
-        }
-    })
-    const expirationSeconds = 60 * 60
-
-    const otpKey = `owner-application:otp:${payload.user.email}`
-    const otpValue = crypto.randomInt(100000, 1000000).toString()
-
-    await redisClient.set(otpKey, otpValue, {
-        EX: expirationSeconds
-    })
-
-    const templatePath = path.join(
-        process.cwd(), "src/app/templates/register-owner.ejs"
-    )
-
-    const html = await ejs.renderFile(templatePath, {
-        name: payload.user.name,
-        email: payload.user.email,
-        otp: otpValue
-    }).catch(async () => {
-        // Fallback to register-patient.ejs if register-owner.ejs doesn't exist
-        const fallbackPath = path.join(
-            process.cwd(), "src/app/templates/register-patient.ejs"
-        )
-        return await ejs.renderFile(fallbackPath, {
-            name: payload.user.name,
-            email: payload.user.email,
-            otp: otpValue
-        })
+const applyAsOwner = async (userId: string, payload: IApplyOwnerPayload, verificationFiles: Express.Multer.File[]) => {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
     });
 
-    await transporter.sendMail({
-        from: config.smtp_user || config.email_sender,
-        to: payload.user.email,
-        subject: "Verify your email for owner application",
-        html: html
-    })
-    return ownerApplication;
+    if (!user || user.isDeleted || user.status === UserStatus.DELETED) {
+        throw new AppError("User Not Found", httpStatus.NOT_FOUND);
+    }
+
+    if (user.status === UserStatus.BLOCKED) {
+        throw new AppError("Blocked users cannot apply as owner", httpStatus.FORBIDDEN);
+    }
+
+    const existingOwner = await prisma.owner.findUnique({
+        where: { userId },
+    });
+
+    if (existingOwner) {
+        throw new AppError("Owner application already exists for this user", httpStatus.CONFLICT);
+    }
+
+    const uploadedResults: UploadApiResponse[] = [];
+    try {
+        for (const file of verificationFiles) {
+            const result = await new Promise<UploadApiResponse>((resolve, reject) => {
+                cloudinary.uploader.upload_stream(
+                    {
+                        resource_type: "auto"
+                    },
+                    async (error: any, result) => {
+                        if (error) {
+                            return reject(error)
+                        }
+                        if (!result) {
+                            return reject(new AppError("File Upload Failed", httpStatus.INTERNAL_SERVER_ERROR))
+                        }
+                        resolve(result)
+                    }).end(file?.buffer)
+            });
+            uploadedResults.push(result);
+        }
+
+        const ownerApplication = await prisma.owner.create({
+            data: {
+                userId,
+                status: OwnerStatus.PENDING,
+                ...(payload.contactNumber && { contactNumber: payload.contactNumber.trim() }),
+                ...(payload.companyName && { companyName: payload.companyName.trim() }),
+                verificationDocuments: uploadedResults.map(result => ({
+                    url: result.secure_url,
+                    publicId: result.public_id
+                })),
+            },
+            include: {
+                user: { omit: { password: true } },
+            },
+        });
+
+        return ownerApplication;
+    } catch (error) {
+        // Roll back uploaded files so a failed application leaves no orphans
+        await Promise.all(
+            uploadedResults.map(result => cloudinary.uploader.destroy(result.public_id).catch(() => null))
+        );
+        throw error;
+    }
 }
 
 const getOwnerProfile = async (userId: string) => {
@@ -175,7 +145,7 @@ const listOwners = async (query: IListOwnersQuery) => {
     };
 };
 
-const approveOwner = async (ownerId: string, adminId: string, payload: IApproveOwnerPayload) => {
+const approveOwner = async (ownerId: string, adminId: string, _payload: IApproveOwnerPayload) => {
     const owner = await prisma.owner.findUnique({
         where: { id: ownerId },
     });
@@ -192,6 +162,7 @@ const approveOwner = async (ownerId: string, adminId: string, payload: IApproveO
         where: { id: ownerId },
         data: {
             status: OwnerStatus.APPROVED,
+            // TODO: persist approvalNotes after migration adds owners.approvalNotes
             reviewedBy: adminId,
             reviewedAt: new Date(),
         },

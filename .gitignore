@@ -3,3 +3,5 @@ dist/
 generated/
 .env
 .commandcode/
+postman/
+.postman/

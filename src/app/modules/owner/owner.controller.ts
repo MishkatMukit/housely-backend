@@ -1,16 +1,31 @@
 import catchAsync from "../../utils/catchAsync";
 import sendResponse from "../../utils/sendResponse";
+import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
 import { ownerService } from "./owner.service";
+import { ownerValidation } from "./owner.validation";
 import type { Request, Response } from "express";
 
 const applyAsOwner = catchAsync(async (req: Request, res: Response) => {
-    let payload = req.body;
-    if (typeof req.body.data === 'string') {
-        payload = JSON.parse(req.body.data);
+    const userId = req.user?.id as string;
+    let rawPayload: unknown = req.body;
+    if (typeof req.body?.data === 'string') {
+        try {
+            rawPayload = JSON.parse(req.body.data);
+        } catch {
+            throw new AppError("Invalid JSON in 'data' field", httpStatus.BAD_REQUEST);
+        }
     }
-    const additionalFiles = (req.files as Express.Multer.File[]) || [];
-    const result = await ownerService.applyAsOwner(payload, additionalFiles);
+    const payload = await ownerValidation.applyAsOwnerSchema.parseAsync(rawPayload ?? {});
+    const files = req.files as unknown as Record<string, Express.Multer.File[]>;
+    const verificationFiles = files?.["verificationDocuments"] ?? [];
+    if (verificationFiles.length < 1) {
+        throw new AppError(
+            "At least one verification document (NID and property ownership proof) is required",
+            httpStatus.BAD_REQUEST,
+        );
+    }
+    const result = await ownerService.applyAsOwner(userId, payload, verificationFiles);
 
     sendResponse(res, {
         statusCode: httpStatus.OK,
@@ -53,7 +68,7 @@ const listOwners = catchAsync(async (req: Request, res: Response) => {
 const approveOwner = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
     const adminId = req.user?.id as string;
-    const result = await ownerService.approveOwner(id, adminId, req.body);
+    const result = await ownerService.approveOwner(id as string, adminId, req.body);
 
     sendResponse(res, {
         statusCode: httpStatus.OK,
@@ -66,7 +81,7 @@ const approveOwner = catchAsync(async (req: Request, res: Response) => {
 const rejectOwner = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
     const adminId = req.user?.id as string;
-    const result = await ownerService.rejectOwner(id, adminId, req.body);
+    const result = await ownerService.rejectOwner(id as string, adminId, req.body);
 
     sendResponse(res, {
         statusCode: httpStatus.OK,

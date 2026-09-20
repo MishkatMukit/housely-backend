@@ -5,7 +5,7 @@ model User {
   needPasswordChange Boolean      @default(false)
   name               String
   address            String?
-  gender             Gender?
+  gender             String?
   nationalIdNumber   String?
   imageUrl           String?
   imagePublicId      String       @default("")

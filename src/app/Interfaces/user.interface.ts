@@ -40,6 +40,7 @@ export interface IListUsersResponse {
   totalPages: number;
 }
 
+// TODO: replace with generated Gender enum after Gender migration
 export type Gender = "MALE" | "FEMALE";
 
 export interface IUpdateProfilePayload {
