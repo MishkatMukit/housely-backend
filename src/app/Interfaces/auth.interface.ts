@@ -14,7 +14,7 @@ export interface ILoginUserPayload {
     password: string;
 }
 export interface IRequestUser {
-    userId: string;
+    id: string;
     email: string;
     name: string;
     role: Role;

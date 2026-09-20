@@ -24,19 +24,6 @@ const uploadProfileImage = catchAsync(async (req: Request, res: Response) => {
     });
 })
 
-const getUserProfile = catchAsync(async (req: Request, res: Response) => {
-    const userId = req.user?.id as string;
-
-    const result = await userService.getUserProfile(userId);
-
-    sendResponse(res, {
-        statusCode: httpStatus.OK,
-        success: true,
-        message: "User profile fetched successfully",
-        data: result,
-    });
-})
-
 const listUsers = catchAsync(async (req: Request, res: Response) => {
     const query = {
         page: req.query.page ? Number(req.query.page) : undefined,
@@ -110,7 +97,6 @@ const deleteUser = catchAsync(async (req: Request, res: Response) => {
 
 export const userController = {
     uploadProfileImage,
-    getUserProfile,
     getUserById,
     listUsers,
     blockUser,

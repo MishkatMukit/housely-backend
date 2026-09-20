@@ -57,29 +57,6 @@ const uploadProfileImage = async (buffer: Buffer, userId: string) => {
 
 }
 
-const getUserProfile = async (userId: string) => {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        omit: {
-            password: true,
-        },
-        include: {
-            tenant: true,
-            owner: true,
-        },
-    });
-
-    if (!user) {
-        throw new AppError("User Not Found", httpStatus.NOT_FOUND);
-    }
-
-    if (user.status === UserStatus.DELETED) {
-        throw new AppError("User Account Deleted", httpStatus.FORBIDDEN);
-    }
-
-    return user;
-};
-
 const listUsers = async (query: IListUsersQuery): Promise<IListUsersResponse> => {
     const page = query.page || 1;
     const limit = query.limit || 10;
@@ -161,6 +138,10 @@ const blockUser = async (userId: string) => {
         throw new AppError("User Not Found", httpStatus.NOT_FOUND);
     }
 
+    if (user.status === UserStatus.DELETED || user.isDeleted) {
+        throw new AppError("Deleted users cannot be blocked", httpStatus.CONFLICT);
+    }
+
     if (user.status === UserStatus.BLOCKED) {
         throw new AppError("User Is Already Blocked", httpStatus.CONFLICT);
     }
@@ -208,7 +189,10 @@ const deleteUser = async (userId: string) => {
     const user = await prisma.user.findUnique({
         where: { id: userId },
     });
-
+    if(user?.isDeleted || user?.status === UserStatus.DELETED){
+        throw new AppError("User is already Deleted", httpStatus.NOT_FOUND)
+    }
+    
     if (!user) {
         throw new AppError("User Not Found", httpStatus.NOT_FOUND);
     }
@@ -230,7 +214,6 @@ const deleteUser = async (userId: string) => {
 
 export const userService = {
     uploadProfileImage,
-    getUserProfile,
     getUserById,
     listUsers,
     blockUser,

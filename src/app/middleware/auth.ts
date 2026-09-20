@@ -24,14 +24,20 @@ const checkAuth = (...requiredRoles: Role[]) => {
       throw new Error(verifiedToken.error);
     }
 
-    const { id, role } = verifiedToken.data as JwtPayload;
+    const { userId, role } = verifiedToken.data as JwtPayload & { userId?: string };
+
+    if (!userId) {
+      throw new Error("Invalid access token. Please login again.");
+    }
 
     if (requiredRoles.length && !requiredRoles.includes(role as Role)) {
       throw new Error("Forbidden. You don't have permission to access this resource");
     }
 
     const user = await prisma.user.findUnique({
-      where: { id },
+      where: {
+        id: userId
+      },
     });
 
     if (!user) {

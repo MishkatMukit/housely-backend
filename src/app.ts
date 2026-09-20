@@ -6,6 +6,7 @@ import { globalErrorHandler } from "./app/middleware/globalErrorHandler";
 import { routeHandler } from "../src/app/middleware/notFound";
 import { authRoutes } from "./app/modules/auth/auth.route";
 import { userRoutes } from "./app/modules/user/user.route";
+import { ownerRoutes } from "./app/modules/owner/owner.route";
 
 const app: Application = express();
 
@@ -22,11 +23,12 @@ app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/owners", ownerRoutes);
 
 app.get("/", async (req: Request, res: Response) => {
   res.json({
     message: "Server is running",
-    author: "Mishakt Mahabub"
+    author: "Mishkat Mahabub"
   });
 });
 

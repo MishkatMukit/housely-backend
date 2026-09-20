@@ -126,16 +126,16 @@ const verifyUserEmail = async (payload: IVerifyUserEmailPayload) => {
 	await redisClient.del(`user-registration-data:${email}`);
 
 	const { tenant, ...user } = createdUser;
-	const JwtPayload = {
-		userid: user.id,
+	const jwtPayload = {
+		userId: user.id,
 		name: user.name,
 		email: user.email,
 		role: user.role
 	}
 
-	const accessToken = await jwtUtils.createToken(JwtPayload, config.jwt_access_secret, config.jwt_access_expires_in);
+	const accessToken = await jwtUtils.createToken(jwtPayload, config.jwt_access_secret, config.jwt_access_expires_in);
 
-	const refreshToken = await jwtUtils.createToken(JwtPayload, config.jwt_refresh_secret, config.jwt_refresh_expires_in);
+	const refreshToken = await jwtUtils.createToken(jwtPayload, config.jwt_refresh_secret, config.jwt_refresh_expires_in);
 
 	const templatePath = path.join(process.cwd(), "src", "app", "templates", "welcome-user.ejs")
 	const html = await ejs.renderFile(templatePath, { name: user.name, email: user.email })
@@ -217,7 +217,7 @@ const loginUser = async (payload: ILoginUserPayload) => {
 const getMe = async (user: IRequestUser) => {
 	const isUserExists = await prisma.user.findUnique({
 		where: {
-			id: user.userId,
+			id: user.id,
 		},
 		include: {
 			tenant: true,
