@@ -2,7 +2,7 @@ import { ApplicationStatus, LeaseStatus, OwnerStatus, Role, TenantStatus, UserSt
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
-import type { IApplyOwnerPayload, IApproveOwnerPayload, IListOwnersQuery, IRejectOwnerPayload, IUpdateOwnerProfilePayload } from "../../Interfaces/owner.interface";
+import type { IApplyOwnerPayload, IListOwnersQuery, IRejectOwnerPayload, IUpdateOwnerProfilePayload } from "../../Interfaces/owner.interface";
 import type { UploadApiResponse } from "cloudinary";
 import { cloudinary } from "../../lib/cloudinary";
 
@@ -187,7 +187,7 @@ const listOwners = async (query: IListOwnersQuery) => {
     };
 };
 
-const approveOwner = async (ownerId: string, adminId: string, _payload: IApproveOwnerPayload) => {
+const approveOwner = async (ownerId: string, adminId: string) => {
     const owner = await prisma.owner.findUnique({
         where: { id: ownerId },
     });
@@ -200,27 +200,31 @@ const approveOwner = async (ownerId: string, adminId: string, _payload: IApprove
         throw new AppError("Owner Is Already Approved", httpStatus.CONFLICT);
     }
 
-    const updatedOwner = await prisma.owner.update({
-        where: { id: ownerId },
-        data: {
-            status: OwnerStatus.APPROVED,
-            // TODO: persist approvalNotes after migration adds owners.approvalNotes
-            reviewedBy: adminId,
-            reviewedAt: new Date(),
-        },
-    });
+    if (owner.status === OwnerStatus.REJECTED) {
+        throw new AppError("Rejected applications cannot be approved. Ask the user to resubmit.", httpStatus.CONFLICT);
+    }
 
-    // Flip user role to OWNER
-    await prisma.user.update({
-        where: { id: owner.userId },
-        data: { role: Role.OWNER },
-    });
-
-    // Set tenant to INACTIVE
-    await prisma.tenant.updateMany({
-        where: { userId: owner.userId },
-        data: { status: TenantStatus.INACTIVE },
-    });
+    const [updatedOwner] = await prisma.$transaction([
+        prisma.owner.update({
+            where: { id: ownerId },
+            data: {
+                status: OwnerStatus.APPROVED,
+                reviewedBy: adminId,
+                reviewedAt: new Date(),
+            },
+            include: { user: { omit: { password: true } } },
+        }),
+        // Flip user role to OWNER
+        prisma.user.update({
+            where: { id: owner.userId },
+            data: { role: Role.OWNER },
+        }),
+        // Set tenant to INACTIVE
+        prisma.tenant.updateMany({
+            where: { userId: owner.userId },
+            data: { status: TenantStatus.INACTIVE },
+        }),
+    ]);
 
     return updatedOwner;
 };

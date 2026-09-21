@@ -20,13 +20,6 @@ const ownerIdParamSchema = z.object({
   id: z.uuid("Invalid owner id"),
 });
 
-const approveOwnerSchema = z
-  .object({
-    approvalNotes: z.string().trim().min(1).max(500).optional(),
-  })
-  .strict()
-  .optional();
-
 const rejectOwnerSchema = z
   .object({
     rejectionReason: z.string().trim().min(1, "Rejection reason is required").max(500),
@@ -46,7 +39,6 @@ export const ownerValidation = {
   applyAsOwnerSchema,
   listOwnersQuerySchema,
   ownerIdParamSchema,
-  approveOwnerSchema,
   rejectOwnerSchema,
   updateOwnerProfileSchema,
 };

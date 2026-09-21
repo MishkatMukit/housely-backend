@@ -10,10 +10,6 @@ export interface IUpdateOwnerProfilePayload {
     contactNumber?: string;
 }
 
-export interface IApproveOwnerPayload {
-    approvalNotes?: string;
-}
-
 export interface IRejectOwnerPayload {
     rejectionReason: string;
 }

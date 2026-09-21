@@ -72,7 +72,7 @@ const listOwners = catchAsync(async (req: Request, res: Response) => {
 const approveOwner = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
     const adminId = req.user?.id as string;
-    const result = await ownerService.approveOwner(id as string, adminId, req.body);
+    const result = await ownerService.approveOwner(id as string, adminId);
 
     sendResponse(res, {
         statusCode: httpStatus.OK,

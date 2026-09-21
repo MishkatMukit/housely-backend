@@ -22,7 +22,7 @@ router.patch("/profile", auth(Role.OWNER), validateRequest(ownerValidation.updat
 
 // Admin / Superadmin
 router.get("/", auth(Role.ADMIN, Role.SUPERADMIN), validateQuery(ownerValidation.listOwnersQuerySchema), ownerController.listOwners);
-router.patch("/:id/approve", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(ownerValidation.ownerIdParamSchema), validateRequest(ownerValidation.approveOwnerSchema), ownerController.approveOwner);
+router.patch("/:id/approve", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(ownerValidation.ownerIdParamSchema), ownerController.approveOwner);
 router.patch("/:id/reject", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(ownerValidation.ownerIdParamSchema), validateRequest(ownerValidation.rejectOwnerSchema), ownerController.rejectOwner);
 
 export { router as ownerRoutes };
