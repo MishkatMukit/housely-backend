@@ -69,6 +69,17 @@ const listOwners = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const viewOwnerApplications = catchAsync(async (req: Request, res: Response) => {
+    const result = await ownerService.viewOwnerApplications(req.query as any);
+
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: "Owner applications fetched successfully",
+        data: result,
+    });
+});
+
 const approveOwner = catchAsync(async (req: Request, res: Response) => {
     const { id } = req.params;
     const adminId = req.user?.id as string;
@@ -111,6 +122,7 @@ export const ownerController = {
     applyAsOwner,
     getOwnerProfile,
     listOwners,
+    viewOwnerApplications,
     approveOwner,
     rejectOwner,
     updateOwnerProfile,

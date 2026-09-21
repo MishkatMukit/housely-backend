@@ -18,11 +18,12 @@ router.post(
 
 // Owner
 router.get("/profile", auth(Role.OWNER), ownerController.getOwnerProfile);
-router.patch("/profile", auth(Role.OWNER), validateRequest(ownerValidation.updateOwnerProfileSchema), ownerController.updateOwnerProfile);
+router.patch("/update-profile", auth(Role.OWNER), validateRequest(ownerValidation.updateOwnerProfileSchema), ownerController.updateOwnerProfile);
 
 // Admin / Superadmin
 router.get("/", auth(Role.ADMIN, Role.SUPERADMIN), validateQuery(ownerValidation.listOwnersQuerySchema), ownerController.listOwners);
-router.patch("/:id/approve", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(ownerValidation.ownerIdParamSchema), ownerController.approveOwner);
-router.patch("/:id/reject", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(ownerValidation.ownerIdParamSchema), validateRequest(ownerValidation.rejectOwnerSchema), ownerController.rejectOwner);
+router.get("/applications", auth(Role.ADMIN, Role.SUPERADMIN), validateQuery(ownerValidation.listOwnersQuerySchema), ownerController.viewOwnerApplications);
+router.patch("/approve/:id", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(ownerValidation.ownerIdParamSchema), ownerController.approveOwner);
+router.patch("/reject/:id", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(ownerValidation.ownerIdParamSchema), validateRequest(ownerValidation.rejectOwnerSchema), ownerController.rejectOwner);
 
-export { router as ownerRoutes };
+export { router as ownerRoutes };

@@ -4,7 +4,11 @@ import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
 import type { IApplyOwnerPayload, IListOwnersQuery, IRejectOwnerPayload, IUpdateOwnerProfilePayload } from "../../Interfaces/owner.interface";
 import type { UploadApiResponse } from "cloudinary";
+import ejs from "ejs";
+import path from "path";
 import { cloudinary } from "../../lib/cloudinary";
+import config from "../../config";
+import { transporter } from "../../lib/nodemailer";
 
 const applyAsOwner = async (userId: string, payload: IApplyOwnerPayload, verificationFiles: Express.Multer.File[]) => {
     const user = await prisma.user.findUnique({
@@ -187,6 +191,69 @@ const listOwners = async (query: IListOwnersQuery) => {
     };
 };
 
+// Admin queue of owner applications. Defaults to PENDING so the
+// endpoint serves as the review inbox; pass status explicitly for
+// APPROVED / REJECTED history. Shaped as applications (applicant +
+// documents + review info), unlike listOwners which is a directory.
+const viewOwnerApplications = async (query: IListOwnersQuery) => {
+    const page = query.page || 1;
+    const limit = query.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const whereCondition: Record<string, unknown> = {
+        status: query.status ?? OwnerStatus.PENDING,
+    };
+
+    if (query.search) {
+        whereCondition.OR = [
+            { user: { name: { contains: query.search, mode: "insensitive" } } },
+            { user: { email: { contains: query.search, mode: "insensitive" } } },
+            { contactNumber: { contains: query.search, mode: "insensitive" } },
+        ];
+    }
+
+    const [applications, total] = await Promise.all([
+        prisma.owner.findMany({
+            where: whereCondition,
+            skip,
+            take: limit,
+            select: {
+                id: true,
+                status: true,
+                contactNumber: true,
+                verificationDocuments: true,
+                rejectionReason: true,
+                reviewedBy: true,
+                reviewedAt: true,
+                createdAt: true,
+                updatedAt: true,
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        emailVerified: true,
+                        address: true,
+                        nationalIdNumber: true,
+                        imageUrl: true,
+                        createdAt: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: "desc" },
+        }),
+        prisma.owner.count({ where: whereCondition }),
+    ]);
+
+    return {
+        data: applications,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+    };
+};
+
 const approveOwner = async (ownerId: string, adminId: string) => {
     const owner = await prisma.owner.findUnique({
         where: { id: ownerId },
@@ -226,7 +293,28 @@ const approveOwner = async (ownerId: string, adminId: string) => {
         }),
     ]);
 
+    const ownerUser = updatedOwner.user;
+    if (ownerUser?.email) {
+        await sendOwnerWelcomeMail(ownerUser.name, ownerUser.email);
+    }
+
     return updatedOwner;
+};
+
+const sendOwnerWelcomeMail = async (name: string, email: string) => {
+    try {
+        const templatePath = path.join(process.cwd(), "src", "app", "templates", "welcome-owner.ejs");
+        const dashboardUrl = config.app_url ? `${config.app_url}/dashboard/owner` : undefined;
+        const html = await ejs.renderFile(templatePath, { name, email, dashboardUrl });
+        await transporter.sendMail({
+            from: config.email_sender,
+            to: email,
+            subject: "Welcome to Housely — Your Owner Account Is Approved",
+            html,
+        });
+    } catch (error) {
+        console.error("Failed to send owner welcome email:", error);
+    }
 };
 
 const rejectOwner = async (ownerId: string, adminId: string, payload: IRejectOwnerPayload) => {
@@ -242,6 +330,10 @@ const rejectOwner = async (ownerId: string, adminId: string, payload: IRejectOwn
         throw new AppError("Owner Is Already Rejected", httpStatus.CONFLICT);
     }
 
+    if (owner.status === OwnerStatus.APPROVED) {
+        throw new AppError("Approved owners cannot be rejected", httpStatus.CONFLICT);
+    }
+
     const updatedOwner = await prisma.owner.update({
         where: { id: ownerId },
         data: {
@@ -250,7 +342,24 @@ const rejectOwner = async (ownerId: string, adminId: string, payload: IRejectOwn
             reviewedBy: adminId,
             reviewedAt: new Date(),
         },
+        include: { user: { omit: { password: true } } },
     });
+
+    const rejectedUser = updatedOwner.user;
+    if (rejectedUser?.email) {
+        try {
+            const templatePath = path.join(process.cwd(), "src", "app", "templates", "application-rejected.ejs");
+            const html = await ejs.renderFile(templatePath, { name: rejectedUser.name, reason: payload.rejectionReason });
+            await transporter.sendMail({
+                from: config.email_sender,
+                to: rejectedUser.email,
+                subject: "Update on Your Housely Owner Application",
+                html,
+            });
+        } catch (error) {
+            console.error("Failed to send owner rejection email:", error);
+        }
+    }
 
     return updatedOwner;
 };
@@ -278,6 +387,7 @@ export const ownerService = {
     applyAsOwner,
     getOwnerProfile,
     listOwners,
+    viewOwnerApplications,
     approveOwner,
     rejectOwner,
     updateOwnerProfile,
