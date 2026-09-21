@@ -1,12 +1,27 @@
 import type { Request, Response } from "express";
 import catchAsync from "../../utils/catchAsync";
 import sendResponse from "../../utils/sendResponse";
+import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
 import { propertyService } from "./property.service";
+import { propertyValidation } from "./property.validation";
 
 const createProperty = catchAsync(async (req: Request, res: Response) => {
     const userId = req.user?.id as string;
-    const result = await propertyService.createProperty(userId, req.body);
+    let rawPayload: unknown = req.body;
+    if (typeof req.body?.data === "string") {
+        try {
+            rawPayload = JSON.parse(req.body.data);
+        } catch {
+            throw new AppError("Invalid JSON in 'data' field", httpStatus.BAD_REQUEST);
+        }
+    } else if (Array.isArray(req.files) || req.body?.images !== undefined) {
+        const { images: _omit, ...rest } = req.body ?? {};
+        rawPayload = rest;
+    }
+    const payload = await propertyValidation.createPropertySchema.parseAsync(rawPayload ?? {});
+    const files = (Array.isArray(req.files) ? req.files : []) as Express.Multer.File[];
+    const result = await propertyService.createProperty(userId, payload, files);
 
     sendResponse(res, {
         statusCode: httpStatus.CREATED,

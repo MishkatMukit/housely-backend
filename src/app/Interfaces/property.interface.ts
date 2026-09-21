@@ -1,11 +1,11 @@
 export interface ICreatePropertyPayload {
     title: string;
-    description?: string;
+    description?: string | undefined;
     address: string;
     city: string;
     district: string;
-    postalCode?: string;
-    companyName?: string;
+    postalCode?: string | undefined;
+    companyName?: string | undefined;
     totalRooms: number;
 }
 

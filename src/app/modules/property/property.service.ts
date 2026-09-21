@@ -2,9 +2,11 @@ import { OwnerStatus } from "../../../generated/prisma/enums";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
+import type { UploadApiResponse } from "cloudinary";
+import { cloudinary } from "../../lib/cloudinary";
 import type { ICreatePropertyPayload, IListPropertiesQuery } from "../../Interfaces/property.interface";
 
-const createProperty = async (userId: string, payload: ICreatePropertyPayload) => {
+const createProperty = async (userId: string, payload: ICreatePropertyPayload, files: Express.Multer.File[] = []) => {
     const owner = await prisma.owner.findUnique({
         where: { userId },
     });
@@ -13,18 +15,50 @@ const createProperty = async (userId: string, payload: ICreatePropertyPayload) =
         throw new AppError("Only approved owners can create properties", httpStatus.FORBIDDEN);
     }
 
-    const property = await prisma.property.create({
-        data: {
-            ownerId: owner.id,
-            title: payload.title.trim(),
-            description: payload.description?.trim() || null,
-            address: payload.address.trim(),
-            city: payload.city.trim(),
-            district: payload.district.trim(),
-            postalCode: payload.postalCode?.trim() || null,
-            companyName: payload.companyName?.trim() || null,
-            totalRooms: payload.totalRooms,
-        },
+    const uploadedResults: UploadApiResponse[] = [];
+    try {
+        if (files.length > 0) {
+            const uploadOne = (file: Express.Multer.File) =>
+                new Promise<UploadApiResponse>((resolve, reject) => {
+                    cloudinary.uploader
+                        .upload_stream(
+                            {
+                                resource_type: "image",
+                                folder: `housely/properties/${owner.id}`,
+                            },
+                            (error, result) => {
+                                if (error) return reject(error);
+                                if (!result) {
+                                    return reject(
+                                        new AppError("File Upload Failed", httpStatus.INTERNAL_SERVER_ERROR),
+                                    );
+                                }
+                                resolve(result);
+                            },
+                        )
+                        .end(file?.buffer);
+                });
+            uploadedResults.push(...(await Promise.all(files.map(uploadOne))));
+        }
+
+        const images = uploadedResults.map((result) => ({
+            url: result.secure_url,
+            publicId: result.public_id,
+        }));
+
+        const property = await prisma.property.create({
+            data: {
+                ownerId: owner.id,
+                title: payload.title.trim(),
+                description: payload.description?.trim() || null,
+                address: payload.address.trim(),
+                city: payload.city.trim(),
+                district: payload.district.trim(),
+                postalCode: payload.postalCode?.trim() || null,
+                companyName: payload.companyName?.trim() || null,
+                totalRooms: payload.totalRooms,
+                images: images.length > 0 ? images : undefined,
+            },
         include: {
             owner: {
                 select: {
@@ -37,6 +71,12 @@ const createProperty = async (userId: string, payload: ICreatePropertyPayload) =
     });
 
     return property;
+    } catch (error) {
+        await Promise.all(
+            uploadedResults.map((result) => cloudinary.uploader.destroy(result.public_id).catch(() => null)),
+        );
+        throw error;
+    }
 };
 
 const listProperties = async (query: IListPropertiesQuery) => {

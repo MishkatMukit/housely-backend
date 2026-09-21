@@ -9,7 +9,7 @@ const createPropertySchema = z
     district: z.string().trim().min(2).max(100),
     postalCode: z.string().trim().max(20).optional(),
     companyName: z.string().trim().max(150).optional(),
-    totalRooms: z.number().int().min(1).max(1000),
+    totalRooms: z.coerce.number().int().min(1).max(1000),
   })
   .strict();
 

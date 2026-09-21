@@ -2,7 +2,8 @@ import { Router } from "express";
 import { propertyController } from "./property.controller";
 import { propertyValidation } from "./property.validation";
 import auth from "../../middleware/auth";
-import validateRequest, { validateParams, validateQuery } from "../../middleware/validateRequest";
+import { upload } from "../../lib/multer";
+import { validateParams, validateQuery } from "../../middleware/validateRequest";
 import { Role } from "../../../generated/prisma/enums";
 
 const router = Router();
@@ -10,7 +11,7 @@ const router = Router();
 router.post(
     "/",
     auth(Role.OWNER),
-    validateRequest(propertyValidation.createPropertySchema),
+    upload.array("images", 5),
     propertyController.createProperty,
 );
 
