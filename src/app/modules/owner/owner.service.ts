@@ -4,6 +4,7 @@ import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
 import type { IApplyOwnerPayload, IListOwnersQuery, IRejectOwnerPayload, IUpdateOwnerProfilePayload } from "../../Interfaces/owner.interface";
 import type { UploadApiResponse } from "cloudinary";
+import type { Prisma } from "../../../generated/prisma/client";
 import ejs from "ejs";
 import path from "path";
 import { cloudinary } from "../../lib/cloudinary";
@@ -223,6 +224,7 @@ const viewOwnerApplications = async (query: IListOwnersQuery) => {
                 contactNumber: true,
                 verificationDocuments: true,
                 rejectionReason: true,
+                rejectionHistory: true,
                 reviewedBy: true,
                 reviewedAt: true,
                 createdAt: true,
@@ -334,13 +336,24 @@ const rejectOwner = async (ownerId: string, adminId: string, payload: IRejectOwn
         throw new AppError("Approved owners cannot be rejected", httpStatus.CONFLICT);
     }
 
+    const rejectedAt = new Date();
+    const history = Array.isArray(owner.rejectionHistory)
+        ? JSON.parse(JSON.stringify(owner.rejectionHistory)) as Record<string, unknown>[]
+        : [] as Record<string, unknown>[];
+    history.push({
+        reason: payload.rejectionReason,
+        rejectedBy: adminId,
+        rejectedAt: rejectedAt.toISOString(),
+    });
+
     const updatedOwner = await prisma.owner.update({
         where: { id: ownerId },
         data: {
             status: OwnerStatus.REJECTED,
             rejectionReason: payload.rejectionReason,
+            rejectionHistory: history as unknown as Prisma.InputJsonValue,
             reviewedBy: adminId,
-            reviewedAt: new Date(),
+            reviewedAt: rejectedAt,
         },
         include: { user: { omit: { password: true } } },
     });
@@ -373,14 +386,37 @@ const updateOwnerProfile = async (userId: string, payload: IUpdateOwnerProfilePa
         throw new AppError("Owner Profile Not Found", httpStatus.NOT_FOUND);
     }
 
-    const updatedOwner = await prisma.owner.update({
+    const { contactNumber, name, address, gender, nationalIdNumber } = payload;
+
+    const ownerData: Record<string, unknown> = {};
+    if (contactNumber !== undefined) {
+        ownerData.contactNumber = contactNumber.trim();
+    }
+
+    const userData: Record<string, unknown> = {};
+    if (name !== undefined) userData.name = name.trim();
+    if (address !== undefined) userData.address = address.trim();
+    if (gender !== undefined) userData.gender = gender;
+    if (nationalIdNumber !== undefined) userData.nationalIdNumber = nationalIdNumber.trim();
+
+    // Apply updates atomically so Owner + User never drift out of sync.
+    if (Object.keys(ownerData).length > 0 && Object.keys(userData).length > 0) {
+        await prisma.$transaction([
+            prisma.owner.update({ where: { userId }, data: ownerData }),
+            prisma.user.update({ where: { id: userId }, data: userData }),
+        ]);
+    } else if (Object.keys(ownerData).length > 0) {
+        await prisma.owner.update({ where: { userId }, data: ownerData });
+    } else {
+        await prisma.user.update({ where: { id: userId }, data: userData });
+    }
+
+    const freshOwner = await prisma.owner.findUnique({
         where: { userId },
-        data: {
-            ...(payload.contactNumber && { contactNumber: payload.contactNumber }),
-        },
+        include: { user: { omit: { password: true } } },
     });
 
-    return updatedOwner;
+    return freshOwner;
 };
 
 export const ownerService = {

@@ -29,6 +29,10 @@ const rejectOwnerSchema = z
 const updateOwnerProfileSchema = z
   .object({
     contactNumber: z.string().trim().min(6).max(20).optional(),
+    name: z.string().trim().min(2, "Name must be at least 2 characters").max(100).optional(),
+    address: z.string().trim().min(1).optional(),
+    gender: z.enum(["MALE", "FEMALE"]).optional(),
+    nationalIdNumber: z.string().trim().min(1).max(50).optional(),
   })
   .strict()
   .refine((data) => Object.keys(data).length > 0, {

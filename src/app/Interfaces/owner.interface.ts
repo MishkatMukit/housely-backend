@@ -8,6 +8,10 @@ export interface IApplyOwnerPayload {
 
 export interface IUpdateOwnerProfilePayload {
     contactNumber?: string;
+    name?: string;
+    address?: string;
+    gender?: "MALE" | "FEMALE";
+    nationalIdNumber?: string;
 }
 
 export interface IRejectOwnerPayload {

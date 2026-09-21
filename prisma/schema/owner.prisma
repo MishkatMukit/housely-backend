@@ -6,6 +6,7 @@ model Owner {
   contactNumber     String?
   verificationDocuments Json?
   rejectionReason   String?
+  rejectionHistory  Json?     @default("[]")
   
   reviewedBy        String?
   reviewedAt        DateTime?
