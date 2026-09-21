@@ -1,28 +1,25 @@
 model User {
   id                 String       @id @default(uuid())
   email              String       @unique
-  password           String? // optional, null if OAuth
-  needPasswordChange Boolean      @default(false)
-  name               String
   address            String?
-  gender             String?
   nationalIdNumber   String?
-  imageUrl           String?
-  imagePublicId      String       @default("")
-  status             UserStatus   @default(ACTIVE)
-  // Authentication
   googleId           String?      @unique
   authProvider       AuthProvider @default(CREDENTIAL)
   emailVerified      Boolean      @default(false)
-  isDeleted          Boolean      @default(false)
-  deletedAt          DateTime?
   role               Role         @default(TENANT)
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
-
-  // Relations
-  tenant Tenant?
-  owner  Owner?
+  name               String
+  password           String?
+  status             UserStatus   @default(ACTIVE)
+  deletedAt          DateTime?
+  imagePublicId      String       @default("")
+  imageUrl           String?
+  isDeleted          Boolean      @default(false)
+  needPasswordChange Boolean      @default(false)
+  gender             String?
+  owner              Owner?
+  tenant             Tenant?
 
   @@index([email])
   @@index([googleId])

@@ -27,7 +27,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/owner", ownerRoutes);
 app.use("/api/properties", propertyRoutes);
-app.use("/api", flatRoutes);
+app.use("/api/flats", flatRoutes);
 
 app.get("/", async (req: Request, res: Response) => {
   res.json({

@@ -53,10 +53,10 @@ enum PaymentType {
 }
 
 enum LeaseStatus {
-  PENDING // lease created, awaiting advance payment
-  ACTIVE // advance paid, lease is active
-  INACTIVE // paused
-  COMPLETED // lease ended normally
-  TERMINATED // ended early
-  CANCELLED // cancelled before activation
+  PENDING
+  ACTIVE
+  INACTIVE
+  COMPLETED
+  TERMINATED
+  CANCELLED
 }

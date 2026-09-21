@@ -1,21 +1,18 @@
 model Tenant {
-  id               String       @id @default(uuid())
-  name             String
-  email            String       @unique
-  userId           String       @unique
-  status           TenantStatus @default(ACTIVE)
-  contactNumber    String?
+  id               String        @id @default(uuid())
+  userId           String        @unique
+  status           TenantStatus  @default(ACTIVE)
   employmentStatus String?
   aboutMe          String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  applications Application[]
-  leases       Lease[]
-  payments     Payment[]     @relation("TenantPayments")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  contactNumber    String?
+  email            String        @unique
+  name             String
+  applications     Application[]
+  leases           Lease[]
+  payments         Payment[]     @relation("TenantPayments")
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([status])

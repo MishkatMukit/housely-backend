@@ -1,27 +1,21 @@
 model Owner {
-  id                String      @id @default(uuid())
-  userId            String      @unique
-  status            OwnerStatus @default(PENDING)
-  
-  contactNumber     String?
+  id                    String      @id @default(uuid())
+  userId                String      @unique
+  status                OwnerStatus @default(PENDING)
+  contactNumber         String?
   verificationDocuments Json?
-  rejectionReason   String?
-  rejectionHistory  Json?     @default("[]")
-  
-  reviewedBy        String?
-  reviewedAt        DateTime?
-  
-  averageRating     Float?
-  totalReviews      Int         @default(0)
-  
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-
-  // Relations
-  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  properties        Property[]
-  leases            Lease[]
-  payments          Payment[]   @relation("OwnerPayments")
+  rejectionReason       String?
+  reviewedBy            String?
+  reviewedAt            DateTime?
+  averageRating         Float?
+  totalReviews          Int         @default(0)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  rejectionHistory      Json?       @default("[]")
+  leases                Lease[]
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments              Payment[]   @relation("OwnerPayments")
+  properties            Property[]
 
   @@index([userId])
   @@index([status])
