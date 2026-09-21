@@ -1,0 +1,50 @@
+model FlatVariant {
+  id            String   @id @default(uuid())
+  propertyId    String
+
+  name          String // e.g. "2BHK – South facing"
+  bedrooms      Int
+  bathrooms     Int
+  sizeSqft      Int?
+  rentAmount    Decimal  @db.Decimal(15, 2)
+  advanceAmount Decimal  @db.Decimal(15, 2)
+  totalUnits    Int
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  flats         Flat[]
+
+  @@index([propertyId])
+  @@map("flat_variants")
+}
+
+model Flat {
+  id              String     @id @default(uuid())
+  propertyId      String
+  variantId       String
+
+  flatNumber      String
+  status          FlatStatus @default(AVAILABLE)
+
+  // Optional per-unit price overrides (null = inherit variant price)
+  rentOverride    Decimal?   @db.Decimal(15, 2)
+  advanceOverride Decimal?   @db.Decimal(15, 2)
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Relations
+  property        Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  variant         FlatVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  applications    Application[]
+  leases          Lease[]
+
+  @@unique([propertyId, flatNumber])
+  @@index([propertyId])
+  @@index([variantId])
+  @@index([status])
+  @@map("flats")
+}

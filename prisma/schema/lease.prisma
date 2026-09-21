@@ -1,6 +1,6 @@
 model Lease {
   id        String      @id @default(uuid())
-  roomId    String
+  flatId    String
   tenantId  String
   ownerId   String
   
@@ -13,12 +13,12 @@ model Lease {
   updatedAt DateTime    @updatedAt
 
   // Relations
-  room      Room        @relation(fields: [roomId], references: [id])
+  flat      Flat        @relation(fields: [flatId], references: [id])
   tenant    Tenant      @relation(fields: [tenantId], references: [id])
   owner     Owner       @relation(fields: [ownerId], references: [id])
   payments  Payment[]
 
-  @@index([roomId])
+  @@index([flatId])
   @@index([tenantId])
   @@index([ownerId])
   @@map("leases")

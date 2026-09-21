@@ -8,6 +8,7 @@ import { authRoutes } from "./app/modules/auth/auth.route";
 import { userRoutes } from "./app/modules/user/user.route";
 import { ownerRoutes } from "./app/modules/owner/owner.route";
 import { propertyRoutes } from "./app/modules/property/property.route";
+import { flatRoutes } from "./app/modules/flat/flat.route";
 
 const app: Application = express();
 
@@ -26,6 +27,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/owner", ownerRoutes);
 app.use("/api/properties", propertyRoutes);
+app.use("/api", flatRoutes);
 
 app.get("/", async (req: Request, res: Response) => {
   res.json({

@@ -10,7 +10,7 @@ model Property {
   postalCode      String?
   companyName     String?
   
-  totalRooms      Int
+  totalFlats      Int
   images          Json?
   
   createdAt       DateTime  @default(now())
@@ -18,7 +18,8 @@ model Property {
 
   // Relations
   owner           Owner     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  rooms           Room[]
+  variants        FlatVariant[]
+  flats           Flat[]
 
   @@index([ownerId])
   @@map("properties")

@@ -1,7 +1,7 @@
 model Application {
   id              String    @id @default(uuid())
   tenantId        String
-  roomId          String
+  flatId          String
   
   monthlyIncome   Decimal?  @db.Decimal(15, 2)
   employment      String?
@@ -17,10 +17,10 @@ model Application {
 
   // Relations
   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  room            Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  flat            Flat            @relation(fields: [flatId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
-  @@index([roomId])
+  @@index([flatId])
   @@index([status])
   @@map("applications")
 }

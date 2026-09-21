@@ -56,8 +56,8 @@ const createProperty = async (userId: string, payload: ICreatePropertyPayload, f
                 district: payload.district.trim(),
                 postalCode: payload.postalCode?.trim() || null,
                 companyName: payload.companyName?.trim() || null,
-                totalRooms: payload.totalRooms,
-                images: images.length > 0 ? images : undefined,
+                totalFlats: 0,
+                ...(images.length > 0 ? { images } : {}),
             },
         include: {
             owner: {
@@ -66,7 +66,7 @@ const createProperty = async (userId: string, payload: ICreatePropertyPayload, f
                     user: { select: { id: true, name: true } },
                 },
             },
-            _count: { select: { rooms: true } },
+            _count: { select: { flats: true } },
         },
     });
 
@@ -119,7 +119,7 @@ const listProperties = async (query: IListPropertiesQuery) => {
                         user: { select: { id: true, name: true } },
                     },
                 },
-                _count: { select: { rooms: true } },
+                _count: { select: { flats: true } },
             },
             orderBy: { createdAt: "desc" },
         }),
@@ -145,7 +145,7 @@ const getProperty = async (propertyId: string) => {
                     user: { select: { id: true, name: true } },
                 },
             },
-            _count: { select: { rooms: true } },
+            _count: { select: { flats: true } },
         },
     });
 

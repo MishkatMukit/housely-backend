@@ -6,7 +6,6 @@ export interface ICreatePropertyPayload {
     district: string;
     postalCode?: string | undefined;
     companyName?: string | undefined;
-    totalRooms: number;
 }
 
 export interface IListPropertiesQuery {
