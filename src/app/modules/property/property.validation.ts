@@ -25,8 +25,14 @@ const propertyIdParamSchema = z.object({
   id: z.uuid("Invalid property id"),
 });
 
+// Scope param for nested routes: /:propertyId/...
+const propertyScopedParamSchema = z.object({
+  propertyId: z.uuid("Invalid property id"),
+});
+
 export const propertyValidation = {
   createPropertySchema,
   listPropertiesQuerySchema,
   propertyIdParamSchema,
+  propertyScopedParamSchema,
 };

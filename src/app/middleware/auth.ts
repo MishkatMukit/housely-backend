@@ -5,8 +5,10 @@ import config from "../config";
 import { jwtUtils } from "../utils/jwt";
 import type { JwtPayload } from "jsonwebtoken";
 import { prisma } from "../lib/prisma";
+import { AppError } from "../utils/appError";
+import httpStatus from "http-status";
 
-const checkAuth = (...requiredRoles: Role[]) => {
+const auth = (...requiredRoles: Role[]) => {
   return catchAsync(async (req: Request, res: Response, next: NextFunction) => {
     const token =
       req.cookies?.accessToken ||
@@ -15,23 +17,23 @@ const checkAuth = (...requiredRoles: Role[]) => {
         : req.headers.authorization);
 
     if (!token) {
-      throw new Error("You are not logged in. Please login to access resources.");
+      throw new AppError("You are not logged in. Please login to access resources.", httpStatus.UNAUTHORIZED);
     }
 
     const verifiedToken = jwtUtils.verifyToken(token as string, config.jwt_access_secret);
 
     if (!verifiedToken.success) {
-      throw new Error(verifiedToken.error);
+      throw new AppError(verifiedToken.error, httpStatus.UNAUTHORIZED);
     }
 
     const { userId, role } = verifiedToken.data as JwtPayload & { userId?: string };
 
     if (!userId) {
-      throw new Error("Invalid access token. Please login again.");
+      throw new AppError("Invalid access token. Please login again.", httpStatus.UNAUTHORIZED);
     }
 
     if (requiredRoles.length && !requiredRoles.includes(role as Role)) {
-      throw new Error("Forbidden. You don't have permission to access this resource");
+      throw new AppError("Forbidden. You don't have permission to access this resource", httpStatus.FORBIDDEN);
     }
 
     const user = await prisma.user.findUnique({
@@ -41,11 +43,11 @@ const checkAuth = (...requiredRoles: Role[]) => {
     });
 
     if (!user) {
-      throw new Error("User not found. Please login again.");
+      throw new AppError("User not found. Please login again.", httpStatus.UNAUTHORIZED);
     }
 
     if (user.status === UserStatus.BLOCKED) {
-      throw new Error("Your account has been suspended. Please contact support.");
+      throw new AppError("Your account has been suspended. Please contact support.", httpStatus.FORBIDDEN);
     }
 
     req.user = {
@@ -58,5 +60,4 @@ const checkAuth = (...requiredRoles: Role[]) => {
     next();
   });
 };
-
-export default checkAuth;
+export default auth;

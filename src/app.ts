@@ -9,6 +9,7 @@ import { userRoutes } from "./app/modules/user/user.route";
 import { ownerRoutes } from "./app/modules/owner/owner.route";
 import { propertyRoutes } from "./app/modules/property/property.route";
 import { flatRoutes } from "./app/modules/flat/flat.route";
+import { variantRoutes } from "./app/modules/variant/varient.route";
 
 const app: Application = express();
 
@@ -27,6 +28,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/owner", ownerRoutes);
 app.use("/api/properties", propertyRoutes);
+app.use("/api/variants", variantRoutes);
 app.use("/api/flats", flatRoutes);
 
 app.get("/", async (req: Request, res: Response) => {

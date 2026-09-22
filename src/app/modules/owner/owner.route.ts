@@ -8,6 +8,8 @@ import { Role } from "../../../generated/prisma/enums";
 
 const router = Router();
 
+// NOTE: validateParams/validateQuery run BEFORE auth (400 before 401).
+
 // Tenant applies for upgrade to Owner
 router.post(
     "/apply",
@@ -21,9 +23,9 @@ router.get("/profile", auth(Role.OWNER), ownerController.getOwnerProfile);
 router.patch("/update-profile", auth(Role.OWNER), validateRequest(ownerValidation.updateOwnerProfileSchema), ownerController.updateOwnerProfile);
 
 // Admin / Superadmin
-router.get("/", auth(Role.ADMIN, Role.SUPERADMIN), validateQuery(ownerValidation.listOwnersQuerySchema), ownerController.listOwners);
-router.get("/applications", auth(Role.ADMIN, Role.SUPERADMIN), validateQuery(ownerValidation.listOwnersQuerySchema), ownerController.viewOwnerApplications);
-router.patch("/approve/:id", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(ownerValidation.ownerIdParamSchema), ownerController.approveOwner);
-router.patch("/reject/:id", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(ownerValidation.ownerIdParamSchema), validateRequest(ownerValidation.rejectOwnerSchema), ownerController.rejectOwner);
+router.get("/", validateQuery(ownerValidation.listOwnersQuerySchema), auth(Role.ADMIN, Role.SUPERADMIN), ownerController.listOwners);
+router.get("/applications", validateQuery(ownerValidation.listOwnersQuerySchema), auth(Role.ADMIN, Role.SUPERADMIN), ownerController.viewOwnerApplications);
+router.patch("/approve/:id", validateParams(ownerValidation.ownerIdParamSchema), auth(Role.ADMIN, Role.SUPERADMIN), ownerController.approveOwner);
+router.patch("/reject/:id", validateParams(ownerValidation.ownerIdParamSchema), auth(Role.ADMIN, Role.SUPERADMIN), validateRequest(ownerValidation.rejectOwnerSchema), ownerController.rejectOwner);
 
 export { router as ownerRoutes };

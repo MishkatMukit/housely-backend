@@ -8,12 +8,14 @@ import { upload } from "../../lib/multer"
 
 const router = Router()
 
-router.get("/", auth(Role.ADMIN, Role.SUPERADMIN), validateQuery(userValidation.listUsersQuerySchema), userController.listUsers);
+// NOTE: validateParams/validateQuery run BEFORE auth (400 before 401).
+
+router.get("/", validateQuery(userValidation.listUsersQuerySchema), auth(Role.ADMIN, Role.SUPERADMIN), userController.listUsers);
 router.patch("/profile", auth(Role.ADMIN, Role.SUPERADMIN, Role.OWNER, Role.TENANT), validateRequest(userValidation.updateProfileSchema), userController.updateProfile);
-router.get("/:id", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(userValidation.userIdParamSchema), userController.getUserById);
-router.patch("/:id/block", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(userValidation.userIdParamSchema), userController.blockUser);
-router.patch("/:id/unblock", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(userValidation.userIdParamSchema), userController.unblockUser);
-router.delete("/:id", auth(Role.ADMIN, Role.SUPERADMIN), validateParams(userValidation.userIdParamSchema), userController.deleteUser);
+router.get("/:id", validateParams(userValidation.userIdParamSchema), auth(Role.ADMIN, Role.SUPERADMIN), userController.getUserById);
+router.patch("/:id/block", validateParams(userValidation.userIdParamSchema), auth(Role.ADMIN, Role.SUPERADMIN), userController.blockUser);
+router.patch("/:id/unblock", validateParams(userValidation.userIdParamSchema), auth(Role.ADMIN, Role.SUPERADMIN), userController.unblockUser);
+router.delete("/:id", validateParams(userValidation.userIdParamSchema), auth(Role.ADMIN, Role.SUPERADMIN), userController.deleteUser);
 router.patch("/profile-image", auth(Role.ADMIN, Role.SUPERADMIN, Role.OWNER, Role.TENANT), upload.single("profileImage"), userController.uploadProfileImage);
 
 export const userRoutes = router
