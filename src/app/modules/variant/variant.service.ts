@@ -75,6 +75,16 @@ const createVariant = async (userId: string, propertyId: string, payload: ICreat
         throw error;
     }
 };
+const getAllVariants = async () => {
+    const result =  prisma.flatVariant.findMany({
+        include: {
+            property: { select: { id: true, title: true, address: true, city: true, district: true, ownerId: true } },
+            _count: { select: { flats: true } },
+        },
+        orderBy: { createdAt: "desc" },
+    });
+    return result
+};
 const listVariants = async (propertyId: string) => {
     return prisma.flatVariant.findMany({
         where: { propertyId },
@@ -121,5 +131,6 @@ export const variantService = {
     createVariant,
     deleteVariant,
     updateVariant,
-    listVariants
+    listVariants,
+    getAllVariants
 }

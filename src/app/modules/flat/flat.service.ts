@@ -84,7 +84,18 @@ const getAllFlats = async (query: IListAllFlatsQuery) => {
 };
 
 const getAllFlatsByPropertyId= async (propertyId: string, variantId?: string) => {
-  return prisma.flat.findMany({
+
+  const isPropertyExists = await prisma.property.findUnique({
+    where :{
+      id : propertyId
+    }
+  })
+
+  if(!isPropertyExists){
+    throw new AppError("Property no found", httpStatus.NOT_FOUND)
+  }
+
+  const allFlats =  prisma.flat.findMany({
     where: {
       propertyId,
       ...(variantId ? { variantId } : {})
@@ -92,6 +103,8 @@ const getAllFlatsByPropertyId= async (propertyId: string, variantId?: string) =>
     include: { variant: true },
     orderBy: { flatNumber: "asc" },
   });
+
+  return allFlats
 };
 
 

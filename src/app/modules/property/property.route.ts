@@ -5,8 +5,6 @@ import auth from "../../middleware/auth";
 import { upload } from "../../lib/multer";
 import validateRequest, { validateParams, validateQuery } from "../../middleware/validateRequest";
 import { Role } from "../../../generated/prisma/enums";
-import { variantValidation } from "../variant/variant.validation";
-import { flatValidation } from "../flat/flat.validation";
 
 const router = Router();
 
@@ -25,65 +23,17 @@ router.get(
     validateQuery(propertyValidation.listPropertiesQuerySchema),
     propertyController.listProperties,
 );
-
-// ---------------------------------------------------------------------------
-// Property-scoped nested resources
-// Final URLs: /api/properties/:propertyId/variants, /flats, /vacancy
-// Register BEFORE /:id so "variants" isn't captured as an id.
-// ---------------------------------------------------------------------------
-
-router.post(
-    "/:propertyId/variants",
-    validateParams(propertyValidation.propertyScopedParamSchema),
-    auth(Role.OWNER),
-    upload.array("images", 5),
-    propertyController.createVariant,
-);
-
-router.get(
-    "/:propertyId/variants",
-    validateParams(propertyValidation.propertyScopedParamSchema),
-    propertyController.listVariants,
-);
-
-router.get(
-    "/:propertyId/flats",
-    validateParams(propertyValidation.propertyScopedParamSchema),
-    propertyController.listFlats,
-);
-
-router.get(
-    "/:propertyId/vacancy",
-    validateParams(propertyValidation.propertyScopedParamSchema),
-    propertyController.getVacancy,
-);
-
+//get properties by id
 router.get(
     "/:id",
     validateParams(propertyValidation.propertyIdParamSchema),
     propertyController.getProperty,
 );
-
-// ---------------------------------------------------------------------------
-// Variant unit-level actions (id is globally unique, no property scope needed)
-// ---------------------------------------------------------------------------
-
-router.post(
-    "/variants/:id/flats",
-    validateParams(variantValidation.variantIdParamSchema),
-    auth(Role.OWNER),
-    validateRequest(flatValidation.addFlatsSchema),
-    propertyController.addFlats,
+router.get(
+    "/vacancy/:propertyId",
+    validateParams(propertyValidation.propertyScopedParamSchema),
+    propertyController.getVacancy,
 );
-
-router.patch(
-    "/variants/:id",
-    validateParams(variantValidation.variantIdParamSchema),
-    auth(Role.OWNER),
-    validateRequest(variantValidation.updateVariantSchema),
-    propertyController.updateVariant,
-);
-
 
 
 export const  propertyRoutes = router

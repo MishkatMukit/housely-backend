@@ -23,7 +23,7 @@ router.get(
   flatController.getAllFlats,
 );
 router.get(
-    "/property/:propertyId/",
+    "/properties/:propertyId/",
     validateParams(propertyValidation.propertyScopedParamSchema),
     flatController.getFlatsByPropertyId,
 );

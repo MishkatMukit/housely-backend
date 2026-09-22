@@ -25,9 +25,19 @@ const createVariant = catchAsync(async (req: Request, res: Response) => {
     const result = await variantService.createVariant(userId, propertyId as string, payload, files);
     sendResponse(res, { statusCode: httpStatus.CREATED, success: true, message: "Variant created successfully", data: result });
 });
+const getAllVariants = catchAsync(async (_req: Request, res: Response) => {
+    const result = await variantService.getAllVariants();
+    if (result.length === 0) {
+        throw new AppError("No variants found", httpStatus.NOT_FOUND);
+    }
+    sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Variants fetched successfully", data: result });
+});
 const listVariants = catchAsync(async (req: Request, res: Response) => {
     const { propertyId } = req.params;
     const result = await variantService.listVariants(propertyId as string);
+    if(result.length === 0){
+        throw new AppError("No varients found", httpStatus.NOT_FOUND)
+    }
     sendResponse(res, { statusCode: httpStatus.OK, success: true, message: "Variants fetched successfully", data: result });
 });
 const deleteVariant = catchAsync(async (req: Request, res: Response) => {
@@ -47,5 +57,6 @@ export const variantController = {
     createVariant,
     deleteVariant,
     updateVariant,
-    listVariants
+    listVariants,
+    getAllVariants
 }

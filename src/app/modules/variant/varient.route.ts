@@ -16,6 +16,10 @@ router.post(
     variantController.createVariant,
 );
 router.get(
+    "/",
+    variantController.getAllVariants,
+);
+router.get(
     "/:propertyId",
     validateParams(propertyValidation.propertyScopedParamSchema),
     variantController.listVariants,
