@@ -1,0 +1,1 @@
+-- Partial unique index: one non-terminal lease per flat`nCREATE UNIQUE INDEX "leases_single_active_flat_idx" ON "leases"("flatId") WHERE "status" NOT IN ('COMPLETED', 'TERMINATED', 'CANCELLED');

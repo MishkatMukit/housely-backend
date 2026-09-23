@@ -6,6 +6,8 @@ model Payment {
   amount             Decimal       @db.Decimal(15, 2)
   type               PaymentType
   status             PaymentStatus
+  periodStart        DateTime?
+  periodEnd          DateTime?
   bkashTransactionId String?
   paymentMethod      String?
   paidAt             DateTime?
@@ -15,6 +17,7 @@ model Payment {
   owner              Owner         @relation("OwnerPayments", fields: [ownerId], references: [id], onDelete: Cascade)
   tenant             Tenant        @relation("TenantPayments", fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@unique([leaseId, type, periodStart])
   @@index([leaseId])
   @@index([tenantId])
   @@index([ownerId])
