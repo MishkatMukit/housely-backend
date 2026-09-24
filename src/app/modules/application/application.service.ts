@@ -17,6 +17,8 @@ import type { IRequestUser } from "../../Interfaces/auth.interface";
 import { transporter } from "../../lib/nodemailer";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
+import { normalizeToFirstOfMonth } from "../../utils/paymentPeriods";
+import { leaseService } from "../lease/lease.service";
 
 const assertOwnerProperty = async (userId: string, propertyId: string) => {
 	const property = await prisma.property.findUnique({
@@ -297,7 +299,66 @@ const approveApplication = async (userId: string, applicationId: string) => {
 		);
 	}
 
+	await autoCreateLease(applicationId);
+
 	return approved;
+};
+
+const autoCreateLease = async (applicationId: string) => {
+	const application = await prisma.application.findUnique({
+		where: { id: applicationId },
+		include: {
+			flat: {
+				include: {
+					variant: true,
+					property: { include: { owner: { include: { user: true } } } },
+				},
+			},
+			tenant: true,
+		},
+	});
+	if (!application) return;
+
+	const ownerUser = application.flat.property.owner.user;
+	const tenant = application.tenant;
+	if (!ownerUser || !tenant) return;
+
+	const startDate = normalizeToFirstOfMonth(new Date());
+	const endDate = new Date(
+		Date.UTC(
+			startDate.getUTCFullYear(),
+			startDate.getUTCMonth() + 12,
+			0,
+			23,
+			59,
+			59,
+			999,
+		),
+	);
+
+	try {
+		await leaseService.createLease(
+			{
+				id: ownerUser.id,
+				email: ownerUser.email,
+				name: ownerUser.name,
+				role: ownerUser.role,
+			},
+			{
+				flatId: application.flatId,
+				tenantId: tenant.id,
+				amount: application.flat.variant.rentAmount.toNumber(),
+				startDate,
+				endDate,
+			},
+		);
+	} catch (error) {
+		if (error instanceof AppError) throw error;
+		throw new AppError(
+			"Auto-lease creation failed after approval",
+			httpStatus.INTERNAL_SERVER_ERROR,
+		);
+	}
 };
 
 const rejectApplication = async (

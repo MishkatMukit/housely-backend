@@ -11,7 +11,6 @@ import {
 import config from "../../config";
 import type { IRequestUser } from "../../Interfaces/auth.interface";
 import type {
-	ICompleteLeasePayload,
 	ICreateLeasePayload,
 	IListLeasesQuery,
 	ITerminateLeasePayload,
@@ -62,7 +61,6 @@ const createLease = async (
 	});
 	if (!flat) throw new AppError("Flat Not Found", httpStatus.NOT_FOUND);
 
-	const adminBypass = payload.skipApplicationCheck === true && isAdmin(user);
 	if (!isAdmin(user) && flat.property.owner.userId !== user.id) {
 		throw new AppError("Forbidden: not your property", httpStatus.FORBIDDEN);
 	}
@@ -74,7 +72,7 @@ const createLease = async (
 			status: ApplicationStatus.APPROVED,
 		},
 	});
-	if (!approvedApplication && !adminBypass) {
+	if (!approvedApplication) {
 		throw new AppError(
 			"Tenant does not have an approved application for this flat",
 			httpStatus.BAD_REQUEST,
@@ -105,7 +103,6 @@ const createLease = async (
 		new Date(startDate) <= new Date()
 			? LeaseStatus.ACTIVE
 			: LeaseStatus.PENDING;
-	const periods = monthPeriodsBetween(startDate, endDate);
 
 	const lease = await prisma.$transaction(async (tx) => {
 		const currentFlat = await tx.flat.findUnique({
@@ -148,20 +145,25 @@ const createLease = async (
 			},
 		});
 
-		// Seed one MONTHLY_RENT row per calendar month of the lease period
-		await tx.payment.createMany({
-			data: periods.map((period) => ({
-				leaseId: created.id,
-				tenantId: tenant.id,
-				ownerId,
-				amount,
-				type: PaymentType.MONTHLY_RENT,
-				status: PaymentStatus.PENDING,
-				periodStart: period.periodStart,
-				periodEnd: period.periodEnd,
-			})),
-			skipDuplicates: true,
-		});
+		// Seed the first MONTHLY_RENT row (the lease's first calendar month)
+		// only once that month has begun. Subsequent months are materialized
+		// by the lease cron as they come due.
+		if (new Date(startDate) <= new Date()) {
+			const firstPeriod = monthPeriodsBetween(startDate, startDate)[0];
+			if (!firstPeriod) return created;
+			await tx.payment.create({
+				data: {
+					leaseId: created.id,
+					tenantId: tenant.id,
+					ownerId,
+					amount,
+					type: PaymentType.MONTHLY_RENT,
+					status: PaymentStatus.PENDING,
+					periodStart: firstPeriod.periodStart,
+					periodEnd: firstPeriod.periodEnd,
+				},
+			});
+		}
 
 		return created;
 	});
@@ -325,67 +327,10 @@ const terminateLease = async (
 	return terminated;
 };
 
-const completeLease = async (
-	user: IRequestUser,
-	leaseId: string,
-	payload: ICompleteLeasePayload,
-) => {
-	const lease = await prisma.lease.findUnique({
-		where: { id: leaseId },
-		include: {
-			flat: { include: { property: { include: { owner: true } } } },
-			tenant: { include: { user: { omit: { password: true } } } },
-		},
-	});
-	if (!lease) throw new AppError("Lease Not Found", httpStatus.NOT_FOUND);
-
-	if (!isAdmin(user) && lease.flat.property.owner.userId !== user.id) {
-		throw new AppError("Forbidden: not your property", httpStatus.FORBIDDEN);
-	}
-
-	if (lease.status !== LeaseStatus.ACTIVE) {
-		throw new AppError(
-			"Only active leases can be completed",
-			httpStatus.CONFLICT,
-		);
-	}
-
-	const completed = await prisma.$transaction(async (tx) => {
-		const updated = await tx.lease.update({
-			where: { id: leaseId },
-			data: {
-				status: LeaseStatus.COMPLETED,
-				rejectionReason: payload.rejectionReason?.trim() || null,
-			},
-		});
-		await tx.flat.update({
-			where: { id: lease.flatId },
-			data: { status: FlatStatus.AVAILABLE },
-		});
-		await tx.payment.updateMany({
-			where: { leaseId, status: PaymentStatus.PENDING },
-			data: { status: PaymentStatus.FAILED },
-		});
-		return updated;
-	});
-
-	const tenantUser = lease.tenant.user;
-	if (tenantUser?.email) {
-		await sendLeaseMail(
-			tenantUser.name,
-			tenantUser.email,
-			"completed",
-			payload.rejectionReason?.trim() || "Your lease has been completed.",
-		);
-	}
-
-	return completed;
-};
-
 const sendLeaseMail = async (
 	name: string,
 	email: string,
-	outcome: "created" | "terminated" | "completed",
+	outcome: "created" | "terminated",
 	detail: string,
 ) => {
 	try {
@@ -403,9 +348,7 @@ const sendLeaseMail = async (
 			subject:
 				outcome === "created"
 					? "Housely — Your Lease Has Been Created"
-					: outcome === "terminated"
-						? "Housely — Your Lease Was Terminated"
-						: "Housely — Your Lease Has Been Completed",
+					: "Housely — Your Lease Was Terminated",
 			html,
 		});
 	} catch (error) {
@@ -419,5 +362,4 @@ export const leaseService = {
 	listOwnerLeases,
 	getLeaseById,
 	terminateLease,
-	completeLease,
 };

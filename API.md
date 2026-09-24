@@ -15,6 +15,7 @@ Base URL: `http://localhost:5000` (default port, configurable via `PORT` env)
 - [Properties](#properties--apiproperties)
 - [Applications](#applications--apiapplications)
 - [Leases](#leases--apileases)
+- [Payments](#payments--apipayments)
 - [Variants](#variants--apivariants)
 - [Flats](#flats--apiflats)
 
@@ -680,13 +681,22 @@ Path: `id` (uuid).
 Get application by id. Auth: `OWNER`, `ADMIN`, `SUPERADMIN`.
 
 Path: `id` (uuid).
-
 ### PATCH `/api/applications/:id/approve`
 
 Approve an application. Auth: `OWNER` (of the property).
 
-Path: `id` (uuid). Auto-rejects other pending applications for the same flat.
+Path: `id` (uuid).
 
+**Side effects (all in one transaction):**
+1. Application → `APPROVED`.
+2. All other `PENDING` applications for the same flat → `REJECTED` (no double-booking).
+3. **Auto-creates a lease** — approval is the flat-taken momentcard. Side-effect `autoCreateLease` runs inside the same service and calls the lease module's `createLease`, which:
+   - creates the `Lease` (amount from the flat's **variant `rentAmount`**, start = first of current month, end = +12 months),
+   - sets the flat → `OCCUPIED`,
+   - seeds the grouped payments: an `ADVANCE` row + one `MONTHLY_RENT` row per calendar month,
+   - emails the tenant with their lease details.
+
+**Important — failure behavior:** the auto-lease step is **not** best-effort — errors are rethrown. If lease creation fails (most commonly: the flat's variant has **no `rentAmount`** or the flat is not `AVAILABLE`), approval **fails** (no 200, no lease row, application stays as-is until the error propagates). Ensure the flat's variant sets `rentAmount` before approving. Leases are only created through this approval side-effect — there is no manual lease-creation endpoint.
 ### PATCH `/api/applications/:id/reject`
 
 Reject an application. Auth: `OWNER`.
@@ -709,34 +719,7 @@ Path: `id` (uuid).
 
 ## Leases — `/api/leases`
 
-### POST `/api/leases`
-
-Create a lease. Auth: `OWNER`, `ADMIN`, `SUPERADMIN`.
-
-**Body (JSON) (`createLeaseSchema`):**
-
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `flatId` | uuid | yes | |
-| `tenantId` | uuid | yes | |
-| `amount` | number | no | > 0, max 100,000,000; defaults to variant `rentAmount` |
-| `startDate` | date (ISO) | yes | coerced; must be the 1st of the month |
-| `endDate` | date (ISO) | yes | must be after `startDate` |
-| `skipApplicationCheck` | boolean | no | admin override for the approved-application requirement |
-
-**Example request:**
-
-```json
-{
-  "flatId": "uuid",
-  "tenantId": "uuid",
-  "amount": 15000,
-  "startDate": "2026-10-01T00:00:00.000Z",
-  "endDate": "2027-09-30T23:59:59.999Z"
-}
-```
-
-**Side effects:** flat set `OCCUPIED`; seeds an `ADVANCE` payment (variant `advanceAmount`) and one `MONTHLY_RENT` payment per calendar month. Lease status is `PENDING` if start date is in the future, else `ACTIVE`.
+Leases are **created automatically** when an application is approved (see `PATCH /api/applications/:id/approve`); expired leases are **completed automatically** by the lease cron. There is no manual create or complete endpoint.
 
 ### GET `/api/leases/me`
 
@@ -796,19 +779,119 @@ Path: `id` (uuid).
 
 **Side effects:** flat set `AVAILABLE`; pending payments for the lease set `FAILED`.
 
-### PATCH `/api/leases/:id/complete`
+---
 
-Complete a lease. Auth: `OWNER`, `ADMIN`, `SUPERADMIN`.
+## Payments — `/api/payments`
 
-Path: `id` (uuid).
+Payment rows are created automatically when a lease is created/seeded — an `ADVANCE` payment and one `MONTHLY_RENT` payment per calendar month (see the lease cron). These endpoints let a tenant pay a `PENDING` row through the bKash tokenized checkout gatewaycars, and let owners/admins list payments. Payment rows are uniquely identified by `(leaseId, type, periodStart)`.
 
-**Body (JSON):**
+### POST `/api/payments/:id/checkout`
+
+Initiate a bKash Checkout for one of the tenant's pending payments. Auth: `TENANT`.
+
+Path: `id` (uuid, the Payment row id).
+
+**How it works:** generates a merchant invoice from the payment (`tenantId:6-type-amount-id:8`), calls bKash `createPayment`, and persists the returned `paymentID` on the Payment row (`bkashPaymentId`) so the callback and verify step can reconcile the exact same row. Returns the hosted bKash checkout URL.
+
+**Example request:**
+
+```
+POST /api/payments/{id}/checkout
+Cookie: accessToken=...
+```
+
+**Example response (200):**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Payment initiated successfully",
+  "data": {
+    "paymentId": "uuid",
+    "bkashPaymentId": "bkash-payment-id",
+    "bkashURL": "https://tokenized.sandbox.bka.sh/...",
+    "invoice": "a1b2c3-MONTHLY_RENT-15000.00-4f8e7d2c"
+  }
+}
+```
+
+### GET `/api/payments/callback`
+
+bKash callback (inbound redirect from the bKash gateway after the payer completes/cancels). No auth. **This must be a publicly reachable URL.**
+
+Query params:
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `paymentID` | string | yes | the bKash payment id from checkout |
+| `status` | string | yes | `success` (or `Completed`) |
+
+**How it works:** loads the Payment row by `bkashPaymentId`, then executes the payment via bKash `executePayment`. If the transaction is `Completed` with a `trxID` **and** the executed amount matches the row's amount, marks the Payment row `COMPLETED` (persisting `bkashTransactionId`, `paidAt`, `paymentMethod = "bkash"`). Non-success statuses mark the row `FAILED`. Already-completed rows are skipped (idempotent for bKash retries).
+
+**Response:** the gateway redirects the tenant's browser to the frontend:
+
+```
+FRONTEND_URL/dashboard/payments?status=success&paymentId=<uuid>&trxID=<bkash-trx-id>
+FRONTEND_URL/dashboard/payments?status=failure
+```
+
+On success it includes `paymentId` and `trxID`; non-success redirects with `status=failure` (or the bKash status, e.g. `cancel`).
+
+### POST `/api/payments/verify`
+
+Verify a payment after the bKash redirect, server-side. Auth: `TENANT`, `OWNER`.
+
+**Body (JSON) (`verifyPaymentSchema`):**
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `rejectionReason` | string | no | 1–500 chars |
+| `paymentID` | string | yes | the bKash payment id |
+| `status` | string | yes | fallback status from the gateway |
 
-**Side effects:** same as terminate (flat `AVAILABLE`, pending payments `FAILED`).
+**How it works:** queries bKash `queryPayment`; if `transactionStatus === "Completed"` with a `trxID`, completes the row; otherwise marks it `FAILED`.
+
+### GET `/api/payments/me`
+
+List the authenticated tenant's payments. Auth: `TENANT`.
+
+**Query params:**
+
+| Param | Type | Required | Notes |
+|---|---|---|---|
+| `page` | number | no | default 1 |
+| `limit` | number | no | default 10 |
+| `type` | `PaymentType` | no | `ADVANCE`, `MONTHLY_RENT` |
+| `status` | `PaymentStatus` | no | `PENDING`, `COMPLETED`, `FAILED` |
+
+**Example response (200):**
+
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Payments fetched successfully",
+  "data": {
+    "data": [
+      {
+        "id": "uuid",
+        "leaseId": "uuid",
+        "amount": "15000.00",
+        "type": "MONTHLY_RENT",
+        "status": "PENDING",
+        "periodStart": "2026-10-01T00:00:00.000Z"
+      }
+    ],
+    "meta": { "page": 1, "limit": 10, "total": 1, "totalPages": 1 }
+  }
+}
+```
+
+### GET `/api/payments/owner`
+
+List payments across the owner's leases. Auth: `OWNER`, `ADMIN`, `SUPERADMIN`.
+
+Same query params as `/me`, plus optional `leaseId` (uuid). Returns `ownerId`, `leaseId`, `tenantId` joins.
 
 ---
 
@@ -1015,6 +1098,6 @@ Path: `id` (uuid).
 ## Additional Notes
 
 - **File uploads:** multer memory storage → Cloudinary. Allowed types: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`. Max size 5MB per file.
-- **Emails:** sent via Gmail SMTP (Nodemailer) for registration OTP, welcome, forgot/reset password, application approved/rejected, lease created/terminated/completed, owner welcome.
+- **Emails:** sent via Gmail SMTP (Nodemailer) for registration OTP, welcome, forgot/reset password, application approved/rejected, lease created/terminated, owner welcome.
 - **Cron job:** runs every minute — activates pending leases, auto-completes expired leases, and generates missing monthly payment rows for active leases.
 - **Lease creation** seeds an `ADVANCE` payment and one `MONTHLY_RENT` payment per calendar month.

@@ -13,14 +13,6 @@ const router = Router();
 // NOTE: validateParams/validateQuery run BEFORE auth (400 before 401).
 // Ordering: static segments (/me, /owner) MUST be registered before /:id.
 
-// Owner/Admin: create lease for a tenant
-router.post(
-	"/",
-	auth(Role.OWNER, Role.ADMIN, Role.SUPERADMIN),
-	validateRequest(leaseValidation.createLeaseSchema),
-	leaseController.createLease,
-);
-
 // Tenant: my leases
 router.get(
 	"/me",
@@ -51,14 +43,6 @@ router.patch(
 	auth(Role.OWNER, Role.ADMIN, Role.SUPERADMIN),
 	validateRequest(leaseValidation.terminateLeaseSchema),
 	leaseController.terminateLease,
-);
-
-router.patch(
-	"/:id/complete",
-	validateParams(leaseValidation.leaseIdParamSchema),
-	auth(Role.OWNER, Role.ADMIN, Role.SUPERADMIN),
-	validateRequest(leaseValidation.completeLeaseSchema),
-	leaseController.completeLease,
 );
 
 export { router as leaseRoutes };

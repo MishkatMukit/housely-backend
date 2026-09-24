@@ -8,6 +8,7 @@ model Payment {
   status             PaymentStatus
   periodStart        DateTime?
   periodEnd          DateTime?
+  bkashPaymentId     String?
   bkashTransactionId String?
   paymentMethod      String?
   paidAt             DateTime?

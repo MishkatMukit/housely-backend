@@ -6,14 +6,9 @@ export interface ICreateLeasePayload {
   amount?: number;
   startDate: Date;
   endDate: Date;
-  skipApplicationCheck?: boolean;
 }
 
 export interface ITerminateLeasePayload {
-  rejectionReason?: string;
-}
-
-export interface ICompleteLeasePayload {
   rejectionReason?: string;
 }
 

@@ -129,89 +129,6 @@ const getUserById = async (userId: string) => {
     return user;
 };
 
-const blockUser = async (userId: string) => {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-    });
-
-    if (!user) {
-        throw new AppError("User Not Found", httpStatus.NOT_FOUND);
-    }
-
-    if (user.status === UserStatus.DELETED || user.isDeleted) {
-        throw new AppError("Deleted users cannot be blocked", httpStatus.CONFLICT);
-    }
-
-    if (user.status === UserStatus.BLOCKED) {
-        throw new AppError("User Is Already Blocked", httpStatus.CONFLICT);
-    }
-
-    const updatedUser = await prisma.user.update({
-        where: { id: userId },
-        data: {
-            status: UserStatus.BLOCKED,
-        },
-        omit: {
-            password: true,
-        },
-    });
-
-    return updatedUser;
-};
-
-const unblockUser = async (userId: string) => {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-    });
-
-    if (!user) {
-        throw new AppError("User Not Found", httpStatus.NOT_FOUND);
-    }
-
-    if (user.status !== UserStatus.BLOCKED) {
-        throw new AppError("User Is Not Blocked", httpStatus.CONFLICT);
-    }
-
-    const updatedUser = await prisma.user.update({
-        where: { id: userId },
-        data: {
-            status: UserStatus.ACTIVE,
-        },
-        omit: {
-            password: true,
-        },
-    });
-
-    return updatedUser;
-};
-
-const deleteUser = async (userId: string) => {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-    });
-    if(user?.isDeleted || user?.status === UserStatus.DELETED){
-        throw new AppError("User is already Deleted", httpStatus.NOT_FOUND)
-    }
-    
-    if (!user) {
-        throw new AppError("User Not Found", httpStatus.NOT_FOUND);
-    }
-
-    await prisma.user.update({
-        where: { id: userId },
-        data: {
-            status: UserStatus.DELETED,
-            isDeleted: true,
-            deletedAt: new Date(),
-        },
-    });
-
-    return {
-        id: userId,
-        message: "User Deleted Successfully",
-    };
-};
-
 const updateUserProfile = async (
     userId: string,
     payload: IUpdateProfilePayload
@@ -240,7 +157,4 @@ export const userService = {
     updateUserProfile,
     getUserById,
     listUsers,
-    blockUser,
-    unblockUser,
-    deleteUser,
 }

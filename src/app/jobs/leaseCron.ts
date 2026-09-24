@@ -77,7 +77,11 @@ const generateDueMonthlyPayments = async () => {
 	});
 
 	for (const lease of leases) {
-		const periods = monthPeriodsBetween(lease.startDate, lease.endDate);
+		const now = new Date();
+		const periods = monthPeriodsBetween(lease.startDate, lease.endDate)
+			// Only materialize months that have begun; future months appear
+			// as their calendar month arrives.
+			.filter((period) => period.periodStart <= now);
 		if (periods.length === 0) continue;
 
 		const existing = await prisma.payment.findMany({
