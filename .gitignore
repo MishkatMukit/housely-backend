@@ -5,3 +5,4 @@ generated/
 .commandcode/
 postman/
 .postman/
+.vercel

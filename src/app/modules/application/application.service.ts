@@ -220,6 +220,37 @@ const listPropertyApplications = async (
 	return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
 };
 
+const listOwnerApplications = async (
+	userId: string,
+	query: IListApplicationsQuery,
+) => {
+	const page = query.page || 1;
+	const limit = query.limit || 10;
+	const skip = (page - 1) * limit;
+
+	const whereCondition: Record<string, unknown> = {
+		flat: {
+			property: { owner: { userId } },
+			...(query.propertyId ? { propertyId: query.propertyId } : {}),
+		},
+		status: query.status ?? ApplicationStatus.PENDING,
+		...(query.flatId ? { flatId: query.flatId } : {}),
+	};
+
+	const [data, total] = await Promise.all([
+		prisma.application.findMany({
+			where: whereCondition,
+			skip,
+			take: limit,
+			include: FRIENDLY_INCLUDES,
+			orderBy: { createdAt: "desc" },
+		}),
+		prisma.application.count({ where: whereCondition }),
+	]);
+
+	return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+};
+
 const getApplicationById = async (
 	user: IRequestUser,
 	applicationId: string,
@@ -443,6 +474,7 @@ export const applicationService = {
 	listMyApplications,
 	withdrawApplication,
 	listPropertyApplications,
+	listOwnerApplications,
 	getApplicationById,
 	approveApplication,
 	rejectApplication,
