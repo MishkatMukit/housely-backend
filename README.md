@@ -1,170 +1,240 @@
-# Blabber Backend
+# Housely Backend
 
-A production-ready Express.js + TypeScript + Prisma (PostgreSQL) backend boilerplate. It comes with a modular folder structure, JWT authentication, Zod request validation, a global error handler, and a Vercel deployment setup.
+Housely is a property rental and tenancy management backend built with Node.js, Express, TypeScript, Prisma, and PostgreSQL. It powers the core workflows for property owners, tenants, admins, lease management, payments, analytics, and user authentication.
+
+## Overview
+
+This backend supports a rental marketplace where:
+
+- users can register, sign in, and authenticate with email or Google
+- owners can create and manage property listings, variants, and flats
+- tenants can browse available properties and submit applications
+- owner approval workflows manage applications and leases
+- payments are processed through BKash with verification callbacks
+- admin users moderate accounts, verify owners, and review platform analytics
+- scheduled jobs handle lease status updates and recurring payment logic
 
 ## Tech Stack
 
-- **Runtime:** Node.js (>= 20) + TypeScript
-- **Framework:** Express 5
-- **Database:** PostgreSQL with Prisma 7 (driver adapter: `@prisma/adapter-pg`)
-- **Validation:** Zod
-- **Auth:** JWT (access + refresh tokens), bcryptjs
-- **Bundler:** tsup (ESM output)
-- **Dev runner:** tsx watch
+- Node.js
+- TypeScript
+- Express.js
+- Prisma ORM
+- PostgreSQL
+- Redis
+- JWT authentication
+- Cloudinary for image uploads
+- Nodemailer for email delivery
+- Google OAuth
+- BKash integration
+- Cron jobs for recurring tasks
 
 ## Project Structure
 
-```
+```bash
 .
 ├── prisma/
-│   └── schema/              # Prisma schema split into multiple files
-│       ├── schema.prisma    # Generator + datasource config
-│       ├── user.prisma      # User model
-│       └── enums.prisma     # Role, ActiveStatus enums
+│   ├── migrations/
+│   └── schema/
 ├── src/
-│   ├── server.ts            # Entry point — starts the server
-│   ├── app.ts               # Express app, CORS, global middleware, routes
-│   ├── config/              # Environment config (dotenv)
-│   ├── modules/             # Feature modules (route + controller + service)
-│   │   └── example/         # Example module to copy as a starting point
-│   ├── middleware/          # auth, validateRequest, globalErrorHandler, routerHandler
-│   ├── validations/         # Zod request schemas
-│   ├── utils/               # catchAsync, sendResponse, jwt helpers
-│   ├── lib/prisma.ts        # Prisma client singleton (pg adapter)
-│   └── Interfaces/          # Global type augmentations (e.g. req.user)
-├── generated/prisma/        # Generated Prisma client (gitignored)
-├── prisma.config.ts         # Prisma 7 config (schema path + DATABASE_URL)
-├── tsup.config.js           # Build config
-└── vercel.json              # Vercel deployment config
+│   ├── app/
+│   │   ├── config/
+│   │   ├── Interfaces/
+│   │   ├── jobs/
+│   │   ├── lib/
+│   │   ├── middleware/
+│   │   ├── modules/
+│   │   └── utils/
+│   ├── app.ts
+│   └── server.ts
+├── API.md
+├── housely.postman_collection.json
+├── .env.example
+├── biome.json
+├── package.json
+├── prisma.config.ts
+├── tsconfig.json
+├── tsup.config.js
+├── vercel.json
+└── README.md
 ```
+
+## Core Features
+
+### Authentication & Authorization
+- user registration and email verification
+- login/logout flows using JWT cookies
+- Google login integration
+- refresh token support
+- role-based access control for `TENANT`, `OWNER`, `ADMIN`, and `SUPERADMIN`
+
+### Property Management
+- property creation and listing
+- vacancy and availability tracking
+- flat and variant management
+- property image uploads via Cloudinary
+
+### Application & Leasing
+- tenant application creation and status tracking
+- owner approval/rejection workflows
+- lease creation and lifecycle management
+- lease termination handling
+- scheduled lease status updates
+
+### Payments
+- BKash checkout flow
+- payment verification callbacks
+- user and owner payment history
+- monthly rent and advance payment logic
+
+### Admin & Analytics
+- user moderation and blocking
+- owner approval queue
+- analytics dashboard for admin, owner, and tenant roles
+- platform reporting data and summaries
+
+### Background Jobs
+- recurring lease processing
+- payment cron automation
+- scheduled maintenance tasks
 
 ## Prerequisites
 
-- Node.js >= 20 (tested on v24)
-- PostgreSQL (local or remote, e.g. Neon, Supabase)
-- npm
+Before starting the project, make sure you have:
+
+- Node.js 18+ installed
+- PostgreSQL database running
+- Redis installed and running
+- Cloudinary account for media uploads
+- Google OAuth credentials
+- BKash merchant credentials
+- SMTP email account for notifications
+
+## Environment Setup
+
+Create a `.env` file in the project root using the values from `.env.example` and add your real credentials.
+
+Example:
+
+```env
+NODE_ENV=development
+PORT=5000
+APP_URL=http://localhost:5000
+FRONTEND_URL=http://localhost:3000
+
+DATABASE_URL="postgresql://username:password@localhost:5432/housely?schema=public"
+
+BCRYPT_SALT_ROUNDS=10
+
+JWT_ACCESS_SECRET=your_access_secret
+JWT_REFRESH_SECRET=your_refresh_secret
+JWT_ACCESS_EXPIRES_IN=1d
+JWT_REFRESH_EXPIRES_IN=7d
+
+REDIS_USER=default
+REDIS_PASSWORD=your_redis_password
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+SMTP_USER=your_email@example.com
+SMTP_PASSWORD=your_email_password
+EMAIL_SENDER=your_email@example.com
+
+GOOGLE_CLIENT_ID=your_google_client_id
+
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+BKASH_BASE_URL=https://sandbox.bkash.com
+BKASH_USERNAME=your_bkash_username
+BKASH_PASSWORD=your_bkash_password
+BKASH_APP_KEY=your_app_key
+BKASH_APP_SECRET=your_app_secret
+BKASH_CALLBACK_URL=http://localhost:5000/api/payments/callback
+```
 
 ## Installation
 
 ```bash
-# 1. Clone and install dependencies
-git clone <your-repo-url>
-cd blabber-backend
 npm install
 ```
 
-## Environment Setup
-
-Copy the example environment file and fill in your values:
-
-```bash
-cp .env.example .env
-```
-
-| Variable                  | Description                             | Example                                        |
-| ------------------------- | --------------------------------------- | ---------------------------------------------- |
-| `PORT`                    | Server port                             | `5000`                                         |
-| `APP_URL`                 | Allowed CORS origin (frontend URL)      | `http://localhost:5000`                        |
-| `DATABASE_URL`            | PostgreSQL connection string            | `postgresql://user:pass@localhost:5432/mydb`   |
-| `BCRYPT_SALT_ROUNDS`      | bcrypt salt rounds                      | `10`                                           |
-| `JWT_ACCESS_SECRET`       | Secret for access tokens                | any long random string                         |
-| `JWT_REFRESH_SECRET`      | Secret for refresh tokens               | any long random string                         |
-| `JWT_ACCESS_EXPIRES_IN`   | Access token lifetime                   | `1d`                                           |
-| `JWT_REFRESH_EXPIRES_IN`  | Refresh token lifetime                  | `7d`                                           |
-
-> Use a secret generator (e.g. `openssl rand -base64 32`) for the JWT secrets.
-
 ## Database Setup
 
-This project uses Prisma 7 with the **pg driver adapter** and a multi-file schema loaded from `prisma/schema`.
+Generate Prisma client and run migrations:
 
 ```bash
-# 1. Generate the Prisma client (outputs to generated/prisma)
 npx prisma generate
-
-# 2. Create and apply the initial migration
-npx prisma migrate dev --name init
+npx prisma migrate dev
 ```
 
-The `User` model (with `Role` and `ActiveStatus` enums) is defined in `prisma/schema/user.prisma`. Edit the schema as needed, then run `npx prisma migrate dev` again to apply changes.
-
-> Note: the generated client in `generated/` is gitignored — always run `npx prisma generate` after cloning and after schema changes. The `build` script does this automatically.
-
-## Running the Server
+If the database is already set up and you simply need the client generated:
 
 ```bash
-# Development (hot reload)
+npx prisma generate
+```
+
+## Running the Project
+
+Development mode:
+
+```bash
 npm run dev
+```
 
-# Build for production (generates Prisma client + bundles with tsup)
+Production build:
+
+```bash
 npm run build
-
-# Start the built server
 npm start
 ```
 
-The server runs on `http://localhost:5000`. Verify it's up:
+The server listens on the port defined in `PORT` (default: `5000`).
 
-- `GET /` → `{ message: "Server is running", author: "Mishakt Mahabub" }`
-- `GET /api/example` → sample response from the example module
-- Any unknown route → 404 JSON response
-
-## Adding a New Module
-
-Copy the `src/modules/example` pattern — a module has three files:
-
-1. **`<name>.route.ts`** — defines the Express router for the module
-2. **`<name>.controller.ts`** — handles requests, uses `catchAsync` and `sendResponse`
-3. **`<name>.services.ts`** — business logic (e.g. Prisma queries)
-
-Then mount the router in `src/app.ts`:
-
-```ts
-import { yourRoutes } from "./modules/yourmodule/your.route";
-app.use("/api/yourmodule", yourRoutes);
-```
-
-### Available Utilities
-
-| Utility                     | Purpose                                             |
-| --------------------------- | --------------------------------------------------- |
-| `catchAsync`                | Wrap async controllers to forward errors to the error handler |
-| `sendResponse`              | Consistent JSON success response shape              |
-| `jwtUtils.createToken/verifyToken` | Sign and verify JWT tokens                    |
-| `validateRequest`           | Zod middleware to validate `req.body`               |
-| `auth(...roles)`            | Protect routes; optionally restrict to roles        |
-| `globalErrorHandler`        | Maps Prisma errors to friendly HTTP responses       |
-
-## Authentication
-
-JWT-based auth scaffolding is included:
-
-- `src/utils/jwt.ts` — token creation and verification helpers
-- `src/middleware/auth.ts` — middleware that reads the token from cookies or `Authorization` header, verifies it, checks role + account status, and attaches the user to `req.user`
-- `src/validations/requestSchemas.ts` — Zod schemas for `register` and `login`
-- `src/Interfaces/user.interface.ts` — augments Express `Request` with the `user` property
-
-## Deployment (Vercel)
-
-The project is configured to deploy on Vercel (`vercel.json`):
+## Available Scripts
 
 ```bash
-npm run build
-vercel
+npm run dev     # start the backend in watch mode
+npm run build   # generate Prisma client and build the app
+npm start       # start the production server
 ```
 
-Set the environment variables from `.env` in the Vercel dashboard (or use `vercel env add`). The serverless function is served from `dist/server.js`.
+## API Documentation
 
-## Scripts
+- API reference: [API.md](API.md)
+- Postman collection: [housely.postman_collection.json](housely.postman_collection.json)
 
-| Command            | Description                                   |
-| ------------------ | --------------------------------------------- |
-| `npm run dev`      | Start dev server with hot reload (`tsx watch`) |
-| `npm run build`    | Generate Prisma client and bundle with tsup   |
-| `npm start`        | Run the production build (`node dist/server.js`) |
-| `npx prisma studio`| Browse and edit your database in the browser  |
-| `npx prisma migrate dev --name <migration>` | Create and apply a migration   |
+The app exposes routes under `/api` for authentication, users, properties, applications, leases, payments, analytics, admins, tenants, owners, and variants.
+
+## Main Routes
+
+```text
+/api/auth
+/api/users
+/api/analytics
+/api/admin
+/api/owner
+/api/tenants
+/api/properties
+/api/applications
+/api/leases
+/api/payments
+/api/variants
+/api/flats
+```
+
+## Notes
+
+- The application uses Prisma schema files under `prisma/schema`.
+- File uploads are handled with Multer and Cloudinary.
+- Redis is used for app-level caching/session support and background system dependencies.
+- Background jobs are started from the server entry file to manage lease lifecycle and payment automation.
 
 ## License
 
-ISC
+This project is licensed under the ISC license.
+
+## Author
+
+Mishkat Mahabub
