@@ -9,6 +9,7 @@ import { routeHandler } from "../src/app/middleware/notFound";
 import config from "./app/config";
 import { globalErrorHandler } from "./app/middleware/globalErrorHandler";
 import { adminRoutes } from "./app/modules/admin/admin.route";
+import { analyticsRoutes } from "./app/modules/analytics/analytics.route";
 import { applicationRoutes } from "./app/modules/application/application.route";
 import { authRoutes } from "./app/modules/auth/auth.route";
 import { flatRoutes } from "./app/modules/flat/flat.route";
@@ -35,6 +36,7 @@ app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/analytics", analyticsRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/owner", ownerRoutes);
 app.use("/api/tenants", tenantRoutes);

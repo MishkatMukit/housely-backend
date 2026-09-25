@@ -3,6 +3,7 @@ import { PaymentStatus, PaymentType } from "../../../generated/prisma/enums";
 import config from "../../config";
 import type { IRequestUser } from "../../Interfaces/auth.interface";
 import { bkashPaymentClient } from "../../lib/bkash.client";
+import { invoiceService } from "../../lib/invoice";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 
@@ -148,6 +149,9 @@ const handleCallback = async (
 		},
 	});
 
+	// Send the tenant their PDF invoice; must never break the bKash redirect.
+	void invoiceService.sendRentInvoiceMail(updated.id);
+
 	return {
 		redirectUrl: `${frontendRedirect("success")}&paymentId=${updated.id}&trxID=${executed.trxID}`,
 	};
@@ -174,12 +178,14 @@ const verifyPayment = async (
 		const updated = await prisma.payment.update({
 			where: { id: payment.id },
 			data: {
-				status: "COMPLETED",
+				status: PaymentStatus.COMPLETED,
 				bkashTransactionId: query.trxID,
 				paidAt: new Date(),
 				paymentMethod: "bkash",
 			},
 		});
+
+		void invoiceService.sendRentInvoiceMail(updated.id);
 
 		return {
 			paymentId: updated.id,
@@ -236,15 +242,19 @@ const listOwnerPayments = async (
 	const limit = Number(query.limit) || 10;
 	const skip = (page - 1) * limit;
 
-	const owner = await prisma.owner.findUnique({ where: { userId: user.id } });
-	if (!owner)
-		throw new AppError("Owner Profile Not Found", httpStatus.NOT_FOUND);
-
 	const where: Record<string, unknown> = {
-		ownerId: owner.id,
 		...(query.type ? { type: query.type } : {}),
 		...(query.status ? { status: query.status } : {}),
 	};
+
+	if (user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
+		const owner = await prisma.owner.findUnique({
+			where: { userId: user.id },
+		});
+		if (!owner)
+			throw new AppError("Owner Profile Not Found", httpStatus.NOT_FOUND);
+		where.ownerId = owner.id;
+	}
 
 	const [data, total] = await Promise.all([
 		prisma.payment.findMany({ where, skip, take: limit, orderBy: { createdAt: "asc" } }),

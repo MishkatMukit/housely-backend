@@ -1,17 +1,4 @@
 import { z } from "zod";
-import { Role, UserStatus } from "../../../generated/prisma/enums";
-
-const listUsersQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-  status: z.enum(UserStatus).optional(),
-  role: z.enum(Role).optional(),
-  search: z.string().trim().min(1).optional(),
-});
-
-const userIdParamSchema = z.object({
-  id: z.uuid("Invalid user id"),
-});
 
 const updateProfileSchema = z
   .object({
@@ -26,7 +13,5 @@ const updateProfileSchema = z
   });
 
 export const userValidation = {
-  listUsersQuerySchema,
-  userIdParamSchema,
   updateProfileSchema,
 };

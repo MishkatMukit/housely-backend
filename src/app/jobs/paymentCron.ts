@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { PaymentStatus } from "../../generated/prisma/enums";
 import { bkashPaymentClient } from "../lib/bkash.client";
+import { invoiceService } from "../lib/invoice";
 import { prisma } from "../lib/prisma";
 
 // A tenant who initiates bKash checkout but never returns through the callback
@@ -43,6 +44,7 @@ const reconcileStrandedPayments = async () => {
 						paidAt: new Date(),
 					},
 				});
+				void invoiceService.sendRentInvoiceMail(payment.id);
 				console.log(
 					`[payment-cron] reconciled ${payment.id} -> COMPLETED (${status.trxID})`,
 				);

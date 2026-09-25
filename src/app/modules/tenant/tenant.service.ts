@@ -2,7 +2,7 @@ import { TenantStatus } from "../../../generated/prisma/enums";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
-import type { IListTenantsQuery, IUpdateTenantProfilePayload } from "../../Interfaces/tenant.interface";
+import type { IUpdateTenantProfilePayload } from "../../Interfaces/tenant.interface";
 
 const resolveTenant = async (userId: string) => {
     const tenant = await prisma.tenant.findUnique({
@@ -61,49 +61,7 @@ const updateMyProfile = async (userId: string, payload: IUpdateTenantProfilePayl
     return resolveTenant(userId);
 };
 
-const listTenants = async (query: IListTenantsQuery) => {
-    const page = query.page || 1;
-    const limit = query.limit || 10;
-    const skip = (page - 1) * limit;
-
-    const whereCondition: Record<string, unknown> = {};
-
-    if (query.status) {
-        whereCondition.status = query.status;
-    }
-
-    if (query.search) {
-        whereCondition.OR = [
-            { name: { contains: query.search, mode: "insensitive" } },
-            { email: { contains: query.search, mode: "insensitive" } },
-            { contactNumber: { contains: query.search, mode: "insensitive" } },
-            { user: { name: { contains: query.search, mode: "insensitive" } } },
-            { user: { email: { contains: query.search, mode: "insensitive" } } },
-        ];
-    }
-
-    const [tenants, total] = await Promise.all([
-        prisma.tenant.findMany({
-            where: whereCondition,
-            skip,
-            take: limit,
-            include: { user: { omit: { password: true } } },
-            orderBy: { createdAt: "desc" },
-        }),
-        prisma.tenant.count({ where: whereCondition }),
-    ]);
-
-    return {
-        data: tenants,
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-    };
-};
-
 export const tenantService = {
     getMyProfile,
     updateMyProfile,
-    listTenants,
 };

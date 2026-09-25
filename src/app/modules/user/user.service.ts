@@ -4,7 +4,7 @@ import { prisma } from "../../lib/prisma"
 import { AppError } from "../../utils/appError"
 import { UserStatus } from "../../../generated/prisma/enums"
 import httpStatus from "http-status"
-import type { IListUsersQuery, IListUsersResponse, IUpdateProfilePayload } from "../../Interfaces/user.interface"
+import type { IUpdateProfilePayload } from "../../Interfaces/user.interface"
 
 const uploadProfileImage = async (buffer: Buffer, userId: string) => {
 
@@ -57,78 +57,6 @@ const uploadProfileImage = async (buffer: Buffer, userId: string) => {
 
 }
 
-const listUsers = async (query: IListUsersQuery): Promise<IListUsersResponse> => {
-    const page = query.page || 1;
-    const limit = query.limit || 10;
-    const skip = (page - 1) * limit;
-
-    const whereCondition: Record<string, unknown> = {
-        isDeleted: false,
-    };
-
-    if (query.status) {
-        whereCondition.status = query.status;
-    }
-
-    if (query.role) {
-        whereCondition.role = query.role;
-    }
-
-    if (query.search) {
-        whereCondition.OR = [
-            { email: { contains: query.search, mode: "insensitive" } },
-            { name: { contains: query.search, mode: "insensitive" } },
-        ];
-    }
-
-    const [users, total] = await Promise.all([
-        prisma.user.findMany({
-            where: whereCondition,
-            skip,
-            take: limit,
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                role: true,
-                status: true,
-                emailVerified: true,
-                createdAt: true,
-                updatedAt: true,
-            },
-            orderBy: { createdAt: "desc" },
-        }),
-        prisma.user.count({ where: whereCondition }),
-    ]);
-
-    return {
-        data: users,
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-    };
-};
-
-const getUserById = async (userId: string) => {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        omit: {
-            password: true,
-        },
-        include: {
-            tenant: true,
-            owner: true,
-        },
-    });
-
-    if (!user) {
-        throw new AppError("User Not Found", httpStatus.NOT_FOUND);
-    }
-
-    return user;
-};
-
 const updateUserProfile = async (
     userId: string,
     payload: IUpdateProfilePayload
@@ -155,6 +83,4 @@ const updateUserProfile = async (
 export const userService = {
     uploadProfileImage,
     updateUserProfile,
-    getUserById,
-    listUsers,
 }

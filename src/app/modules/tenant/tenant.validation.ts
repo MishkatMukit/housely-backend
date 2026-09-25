@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { TenantStatus } from "../../../generated/prisma/enums";
 
 const updateTenantProfileSchema = z
   .object({
@@ -16,14 +15,6 @@ const updateTenantProfileSchema = z
     message: "At least one field must be provided",
   });
 
-const listTenantsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-  status: z.enum(TenantStatus).optional(),
-  search: z.string().trim().min(1).optional(),
-});
-
 export const tenantValidation = {
   updateTenantProfileSchema,
-  listTenantsQuerySchema,
 };

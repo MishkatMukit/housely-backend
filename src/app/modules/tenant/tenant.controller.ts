@@ -28,19 +28,7 @@ const updateMyProfile = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
-const listTenants = catchAsync(async (req: Request, res: Response) => {
-    const result = await tenantService.listTenants(req.query as any);
-
-    sendResponse(res, {
-        statusCode: httpStatus.OK,
-        success: true,
-        message: "Tenants fetched successfully",
-        data: result,
-    });
-});
-
 export const tenantController = {
     getMyProfile,
     updateMyProfile,
-    listTenants,
 };

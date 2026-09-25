@@ -37,41 +37,7 @@ const updateProfile = catchAsync(async (req: Request, res: Response) => {
     });
 })
 
-const listUsers = catchAsync(async (req: Request, res: Response) => {
-    const query = {
-        page: req.query.page ? Number(req.query.page) : undefined,
-        limit: req.query.limit ? Number(req.query.limit) : undefined,
-        status: req.query.status as string | undefined,
-        role: req.query.role as string | undefined,
-        search: req.query.search as string | undefined,
-    };
-
-    const result = await userService.listUsers(query as any);
-
-    sendResponse(res, {
-        statusCode: httpStatus.OK,
-        success: true,
-        message: "Users fetched successfully",
-        data: result,
-    });
-})
-
-const getUserById = catchAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
-
-    const result = await userService.getUserById(id as string);
-
-    sendResponse(res, {
-        statusCode: httpStatus.OK,
-        success: true,
-        message: "User fetched successfully",
-        data: result,
-    });
-})
-
 export const userController = {
     uploadProfileImage,
     updateProfile,
-    getUserById,
-    listUsers,
 }
