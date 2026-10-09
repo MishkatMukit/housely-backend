@@ -19,13 +19,16 @@ export const validateQuery = (schema: ZodType): RequestHandler => {
         string,
         unknown
       >;
-      // Express 5: req.query is getter-only, mutate in place instead of reassigning
-      for (const key of Object.keys(req.query)) {
-        if (!(key in parsed)) {
-          delete (req.query as Record<string, unknown>)[key];
-        }
-      }
-      Object.assign(req.query, parsed);
+      // Express 5: req.query is a getter that re-parses the raw URL on every
+      // access, so mutating the returned object in place is discarded and
+      // assignment throws (getter-only). Redefine the property as a plain own
+      // value holding the validated, coerced object instead.
+      Object.defineProperty(req, "query", {
+        value: parsed,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
       next();
     } catch (error) {
       next(error);
