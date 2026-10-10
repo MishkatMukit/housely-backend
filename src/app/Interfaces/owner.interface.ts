@@ -21,6 +21,6 @@ export interface IRejectOwnerPayload {
 export interface IListOwnersQuery {
     page?: number;
     limit?: number;
-    status?: OwnerStatus;
+    status?: OwnerStatus | "ALL";
     search?: string;
 }

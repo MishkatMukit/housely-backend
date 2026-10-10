@@ -313,17 +313,19 @@ const listOwners = async (query: IListOwnersQuery) => {
 };
 
 // Admin queue of owner applications. Defaults to PENDING so the
-// endpoint serves as the review inbox; pass status explicitly for
-// APPROVED / REJECTED history. Shaped as applications (applicant +
-// documents + review info), unlike listOwners which is a directory.
+// endpoint serves as the review inbox; pass status=ALL for the full
+// history or an explicit APPROVED / REJECTED filter. Shaped as
+// applications (applicant + documents + review info), unlike listOwners
+// which is a directory.
 const viewOwnerApplications = async (query: IListOwnersQuery) => {
 	const page = query.page || 1;
 	const limit = query.limit || 10;
 	const skip = (page - 1) * limit;
 
-	const whereCondition: Record<string, unknown> = {
-		status: query.status ?? OwnerStatus.PENDING,
-	};
+	const whereCondition: Record<string, unknown> =
+		query.status === "ALL"
+			? {}
+			: { status: query.status ?? OwnerStatus.PENDING };
 
 	if (query.search) {
 		whereCondition.OR = [

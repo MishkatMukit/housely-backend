@@ -233,7 +233,7 @@ const listOwnerApplications = async (
 			property: { owner: { userId } },
 			...(query.propertyId ? { propertyId: query.propertyId } : {}),
 		},
-		status: query.status ?? ApplicationStatus.PENDING,
+		...(query.status ? { status: query.status } : {}),
 		...(query.flatId ? { flatId: query.flatId } : {}),
 	};
 

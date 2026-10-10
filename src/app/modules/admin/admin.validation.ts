@@ -6,6 +6,8 @@ import {
 	UserStatus,
 } from "../../../generated/prisma/enums";
 
+const statusWithAll = z.literal("ALL").or(z.enum(OwnerStatus));
+
 const userIdParamSchema = z.object({
 	id: z.uuid("Invalid user id"),
 });
@@ -36,6 +38,13 @@ const listOwnersQuerySchema = z.object({
 	search: z.string().trim().min(1).optional(),
 });
 
+const listOwnerApplicationsQuerySchema = z.object({
+	page: z.coerce.number().int().min(1).optional(),
+	limit: z.coerce.number().int().min(1).max(100).optional(),
+	status: statusWithAll.optional(),
+	search: z.string().trim().min(1).optional(),
+});
+
 const rejectOwnerSchema = z
 	.object({
 		rejectionReason: z
@@ -52,5 +61,6 @@ export const adminValidation = {
 	listUsersQuerySchema,
 	listTenantsQuerySchema,
 	listOwnersQuerySchema,
+	listOwnerApplicationsQuerySchema,
 	rejectOwnerSchema,
 };

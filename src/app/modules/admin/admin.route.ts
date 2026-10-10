@@ -40,7 +40,7 @@ router.get(
 );
 router.get(
 	"/owners/applications",
-	validateQuery(adminValidation.listOwnersQuerySchema),
+	validateQuery(adminValidation.listOwnerApplicationsQuerySchema),
 	auth(Role.ADMIN, Role.SUPERADMIN),
 	adminController.viewOwnerApplications,
 );
