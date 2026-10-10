@@ -27,7 +27,7 @@ router.get(
 	checkAuth(Role.ADMIN, Role.TENANT, Role.OWNER, Role.SUPERADMIN),
 	authController.getMe,
 );
-router.post("/refresh-token", checkAuth(), authController.refreshToken);
+router.post("/refresh-token", authController.refreshToken);
 router.post(
 	"/google",
 	validateRequest(authValidation.googleLoginSchema),
@@ -42,6 +42,11 @@ router.post(
 	"/reset-password",
 	validateRequest(authValidation.resetPasswordSchema),
 	authController.resetPassword,
+);
+router.post(
+	"/resend-otp",
+	validateRequest(authValidation.resendOtpSchema),
+	authController.resendOtp,
 );
 
 export const authRoutes = router;

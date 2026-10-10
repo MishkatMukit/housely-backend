@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import type { IForgotPassword, IGoogleLoginPayload, ILoginUserPayload, IRegisterUserPayload, IRequestUser, IResetPassword, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
+import type { IForgotPassword, IGoogleLoginPayload, ILoginUserPayload, IRegisterUserPayload, IRequestUser, IResendOtpPayload, IResetPassword, IVerifyUserEmailPayload } from "../../Interfaces/auth.interface";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../utils/appError";
 import httpStatus from "http-status";
@@ -90,7 +90,6 @@ const verifyUserEmail = async (payload: IVerifyUserEmailPayload) => {
 	if (storedOtp !== otp) {
 		throw new AppError("Invalid OTP", httpStatus.BAD_REQUEST);
 	}
-	await redisClient.del(otpKey);
 
 	const redisUserData = await redisClient.get(`user-registration-data:${email}`);
 
@@ -99,7 +98,7 @@ const verifyUserEmail = async (payload: IVerifyUserEmailPayload) => {
 	}
 	const parsedData = JSON.parse(redisUserData);
 
-	const createdUser = await prisma.user.create({
+	const createUserPromise = prisma.user.create({
 		data: {
 			name: parsedData.name,
 			email: parsedData.email,
@@ -122,8 +121,23 @@ const verifyUserEmail = async (payload: IVerifyUserEmailPayload) => {
 		include: {
 			tenant: true
 		}
-	})
-	await redisClient.del(`user-registration-data:${email}`);
+	});
+
+	let createdUser: Awaited<typeof createUserPromise>;
+	try {
+		createdUser = await createUserPromise;
+	} catch (error) {
+		const existing = await prisma.user.findUnique({
+			where: { email },
+			omit: { password: true },
+			include: { tenant: true },
+		});
+		if (!existing?.emailVerified) {
+			throw error;
+		}
+		createdUser = existing;
+	}
+	await redisClient.del([otpKey, `user-registration-data:${email}`]);
 
 	const { tenant, ...user } = createdUser;
 	const jwtPayload = {
@@ -511,6 +525,100 @@ const resetPassword = async (payload: IResetPassword) => {
 		html,
 	});
 };
+const resendRegisterOtp = async (payload: { email: string }) => {
+	const email = payload.email.trim().toLowerCase();
+
+	const isUserExists = await prisma.user.findUnique({
+		where: { email },
+	});
+	if (isUserExists?.emailVerified) {
+		throw new AppError("User email is already verified", httpStatus.CONFLICT);
+	}
+	if (isUserExists) {
+		throw new AppError("User With This Email Already Exists", httpStatus.CONFLICT);
+	}
+
+	if (!redisClient.isOpen) {
+		await redisClient.connect();
+	}
+
+	const redisUserData = await redisClient.get(`user-registration-data:${email}`);
+	if (!redisUserData) {
+		throw new AppError("Registration data expired. Please register again.", httpStatus.BAD_REQUEST);
+	}
+	const parsedData = JSON.parse(redisUserData);
+
+	const otpValue = crypto.randomInt(100000, 1000000);
+	await redisClient.set(`register-user-otp:${email}`, String(otpValue), {
+		EX: 5 * 60,
+	});
+	await redisClient.set(`user-registration-data:${email}`, redisUserData, {
+		EX: 5 * 60,
+	});
+
+	const templateData = {
+		name: parsedData.name,
+		email,
+		otpValue,
+		expirationTime: "5 minutes"
+	}
+	const templatePath = path.join(process.cwd(), "src", "app", "templates", "register-user.ejs");
+	const html = await ejs.renderFile(templatePath, templateData);
+	await transporter.sendMail({
+		from: config.email_sender,
+		to: email,
+		subject: "User Registration OTP",
+		html,
+	});
+};
+const resendForgotPasswordOtp = async (payload: { email: string }) => {
+	const { email } = payload;
+	const isUserExist = await prisma.user.findUnique({
+		where: {
+			email
+		}
+	})
+	if (!isUserExist) {
+		throw new AppError("User Not Found", httpStatus.NOT_FOUND)
+	}
+	if (isUserExist.status === UserStatus.BLOCKED) {
+		throw new AppError("User Is Blocked", httpStatus.FORBIDDEN)
+	}
+	if (isUserExist.emailVerified === false) {
+		throw new AppError("Email Not Verified", httpStatus.FORBIDDEN)
+	}
+	if (isUserExist.isDeleted || isUserExist.status === UserStatus.DELETED) {
+		throw new AppError("User Is Deleted", httpStatus.FORBIDDEN)
+	}
+	if (isUserExist.googleId && isUserExist.authProvider === AuthProvider.GOOGLE) {
+		throw new AppError("Account Already Registered With Google", httpStatus.BAD_REQUEST)
+	}
+
+	const otp = crypto.randomInt(100000, 1000000)
+	await redisClient.set(`forgot-password-otp:${email}`, otp.toString(), {
+		expiration: {
+			type: "EX",
+			value: 5 * 60
+		}
+	})
+	const templatePath = path.join(process.cwd(), "src", "app", "templates", "forgot-password.ejs");
+
+	const html = await ejs.renderFile(templatePath, { otp, email });
+
+	await transporter.sendMail({
+		from: config.email_sender,
+		to: email,
+		subject: "Password Reset OTP",
+		html,
+	});
+};
+const resendOtp = async (payload: IResendOtpPayload) => {
+	if (payload.type === "password") {
+		await resendForgotPasswordOtp({ email: payload.email });
+		return;
+	}
+	await resendRegisterOtp({ email: payload.email });
+};
 export const authService = {
 	registerUser,
 	verifyUserEmail,
@@ -519,5 +627,6 @@ export const authService = {
 	refreshToken,
 	googleLogin,
 	forgotPassword,
-	resetPassword
+	resetPassword,
+	resendOtp
 };

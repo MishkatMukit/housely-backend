@@ -31,3 +31,7 @@ export interface IResetPassword {
     newPassword: string
     otp: string
 }
+export interface IResendOtpPayload {
+    email: string
+    type: "register" | "password"
+}

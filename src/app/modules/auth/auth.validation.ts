@@ -57,6 +57,13 @@ const resetPasswordSchema = z
 	})
 	.strict();
 
+const resendOtpSchema = z
+	.object({
+		email: z.email("Please provide a valid email"),
+		type: z.enum(["register", "password"]),
+	})
+	.strict();
+
 export const authValidation = {
 	registerUserSchema,
 	verifyUserEmailSchema,
@@ -64,4 +71,5 @@ export const authValidation = {
 	googleLoginSchema,
 	forgotPasswordSchema,
 	resetPasswordSchema,
+	resendOtpSchema,
 };

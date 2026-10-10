@@ -172,6 +172,18 @@ const resetPassword = catchAsync(async (req: Request, res: Response) => {
         },
     });
 });
+const resendOtp = catchAsync(async (req: Request, res: Response) => {
+    const payload = req.body;
+    await authService.resendOtp(payload);
+    sendResponse(res, {
+        statusCode: httpStatus.OK,
+        success: true,
+        message: `A new OTP has been sent to ${payload.email}. Please check your inbox.`,
+        data: {
+
+        },
+    });
+});
 
 export const authController = {
     registerUser,
@@ -181,5 +193,6 @@ export const authController = {
     refreshToken,
     googleLogin,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    resendOtp
 };
