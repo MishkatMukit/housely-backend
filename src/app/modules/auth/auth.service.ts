@@ -69,6 +69,38 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		html,
 	});
 };
+const reconcileDuplicateRegistrationEmail = async (email: string, originalError: unknown) => {
+	// The create collided with a row that a CONCURRENT verify just committed, or with a
+	// stale/preexisting row already owning this email. Retry the lookup a few times so the
+	// winner's insert becomes visible before deciding how to resolve the conflict.
+	for (let attempt = 0; attempt < 5; attempt++) {
+		const existing = await prisma.user.findUnique({
+			where: { email },
+			omit: { password: true },
+			include: { tenant: true },
+		});
+		if (existing?.emailVerified) {
+			return existing;
+		}
+		if (existing) {
+			throw new AppError(
+				"This email is already registered. Please log in instead.",
+				httpStatus.CONFLICT,
+			);
+		}
+		if (attempt < 4) {
+			await new Promise((resolve) => setTimeout(resolve, 150));
+		}
+	}
+	const strayTenant = await prisma.tenant.findUnique({ where: { email } });
+	if (strayTenant) {
+		throw new AppError(
+			"This email is already registered to another account. Please log in instead.",
+			httpStatus.CONFLICT,
+		);
+	}
+	throw originalError;
+};
 const verifyUserEmail = async (payload: IVerifyUserEmailPayload) => {
 	const email = payload.email.trim().toLowerCase();
 
@@ -127,15 +159,7 @@ const verifyUserEmail = async (payload: IVerifyUserEmailPayload) => {
 	try {
 		createdUser = await createUserPromise;
 	} catch (error) {
-		const existing = await prisma.user.findUnique({
-			where: { email },
-			omit: { password: true },
-			include: { tenant: true },
-		});
-		if (!existing?.emailVerified) {
-			throw error;
-		}
-		createdUser = existing;
+		createdUser = await reconcileDuplicateRegistrationEmail(email, error);
 	}
 	await redisClient.del([otpKey, `user-registration-data:${email}`]);
 
