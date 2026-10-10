@@ -20,7 +20,9 @@ export default {
   smtp_user: process.env.SMTP_USER!,
   smtp_password: process.env.SMTP_PASSWORD!,
   email_sender: process.env.EMAIL_SENDER!,
-  google_client_id: process.env.GOOGLE_CLIENT_ID!,
+  google_client_id: (process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "")
+    .replace(/^["']|["']$/g, "")
+    .trim(),
   cloudinary_cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
   cloudinary_api_key: process.env.CLOUDINARY_API_KEY!,
   cloudinary_api_secret: process.env.CLOUDINARY_API_SECRET!,

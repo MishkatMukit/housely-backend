@@ -322,15 +322,67 @@ const refreshToken = async (token: string) => {
 };
 const googleLogin = async (payload: IGoogleLoginPayload) => {
 	let googleIdTokenPayload: TokenPayload | null | undefined = null;
+
+	const configuredAudiences = Array.from(
+		new Set(
+			[
+				config.google_client_id,
+				process.env.GOOGLE_CLIENT_ID,
+				process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+			]
+				.filter((val): val is string => Boolean(val))
+				.map((val) => val.replace(/^["']|["']$/g, "").trim())
+				.filter((val) => val.length > 0),
+		),
+	);
+
 	try {
 		const ticket = await googleClient.verifyIdToken({
 			idToken: payload.idToken,
-			audience: config.google_client_id,
+			...(configuredAudiences.length > 0
+				? {
+						audience:
+							configuredAudiences.length === 1
+								? configuredAudiences[0]
+								: configuredAudiences,
+					}
+				: {}),
 		});
 
 		googleIdTokenPayload = ticket.getPayload();
-	} catch (error) {
-		throw new AppError("Invalid Or Expired Google ID Token", httpStatus.UNAUTHORIZED);
+	} catch (verifyError) {
+		console.error("googleClient.verifyIdToken failed:", verifyError);
+
+		// Fallback to Google's official tokeninfo endpoint
+		try {
+			const res = await fetch(
+				`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(payload.idToken)}`,
+			);
+			if (res.ok) {
+				const info = (await res.json()) as TokenPayload;
+				const validIssuer =
+					info.iss === "accounts.google.com" ||
+					info.iss === "https://accounts.google.com";
+				const validAudience =
+					configuredAudiences.length === 0 ||
+					configuredAudiences.includes(info.aud as string);
+
+				if (validIssuer && validAudience) {
+					googleIdTokenPayload = info;
+				} else {
+					console.error("Google tokeninfo validation mismatch:", {
+						iss: info.iss,
+						aud: info.aud,
+						configuredAudiences,
+					});
+				}
+			} else {
+				const errText = await res.text();
+				console.error("Google tokeninfo returned status:", res.status, errText);
+			}
+		} catch (fallbackError) {
+			console.error("Google tokeninfo fallback failed:", fallbackError);
+		}
 	}
 
 	if (!googleIdTokenPayload) {
@@ -344,76 +396,60 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 		throw new AppError("Google User Name Not Found", httpStatus.BAD_REQUEST);
 	}
 
-	const ifTenantExistWithGoogleAuth = await prisma.user.findUnique({
+	let user = await prisma.user.findUnique({
 		where: {
 			email: googleIdTokenPayload.email,
-			role: Role.TENANT,
-			googleId: googleIdTokenPayload.sub,
 		},
 	});
 
-	let user = ifTenantExistWithGoogleAuth;
+	if (user) {
+		if (user.status === UserStatus.BLOCKED) {
+			throw new AppError("User Is Blocked", httpStatus.FORBIDDEN);
+		}
 
-	if (!ifTenantExistWithGoogleAuth) {
-		const ifTenantExistWithCredentials = await prisma.user.findUnique({
-			where: {
+		if (user.isDeleted || user.status === UserStatus.DELETED) {
+			throw new AppError("User Is Deleted", httpStatus.FORBIDDEN);
+		}
+
+		if (!user.googleId || !user.emailVerified) {
+			user = await prisma.user.update({
+				where: { id: user.id },
+				data: {
+					googleId: user.googleId || googleIdTokenPayload.sub,
+					emailVerified: true,
+				},
+			});
+		}
+	} else {
+		// Google Register as TENANT
+		user = await prisma.user.create({
+			data: {
+				name: googleIdTokenPayload.name,
 				email: googleIdTokenPayload.email,
 				role: Role.TENANT,
-				authProvider: AuthProvider.CREDENTIAL,
+				googleId: googleIdTokenPayload.sub,
+				authProvider: AuthProvider.GOOGLE,
+				emailVerified: true,
+				tenant: {
+					create: {
+						name: googleIdTokenPayload.name,
+						email: googleIdTokenPayload.email,
+					},
+				},
 			},
 		});
 
-		if (ifTenantExistWithCredentials) {
-			if (!ifTenantExistWithCredentials.emailVerified) {
-				throw new AppError("Email Not Verified", httpStatus.FORBIDDEN);
-			}
-
-			if (ifTenantExistWithCredentials.status === UserStatus.BLOCKED) {
-				throw new AppError("User Is Blocked", httpStatus.FORBIDDEN);
-			}
-
-			if (
-				ifTenantExistWithCredentials.isDeleted ||
-				ifTenantExistWithCredentials.status === UserStatus.DELETED
-			) {
-				throw new AppError("User Is Deleted", httpStatus.FORBIDDEN);
-			}
-
-			user = await prisma.user.update({
-				where: {
-					id: ifTenantExistWithCredentials.id,
-				},
-
-				data: {
-					googleId: googleIdTokenPayload.sub,
-				},
-			});
-		} else {
-			// Google Register
-			user = await prisma.user.create({
-				data: {
-					name: googleIdTokenPayload.name,
-					email: googleIdTokenPayload.email,
-					role: Role.TENANT,
-					googleId: googleIdTokenPayload.sub,
-					authProvider: AuthProvider.GOOGLE,
-					emailVerified: true,
-					tenant: {
-						create: {
-							name: googleIdTokenPayload.name,
-							email: googleIdTokenPayload.email,
-						},
-					},
-				},
-			});
+		try {
 			const templatePath = path.join(process.cwd(), "src", "app", "templates", "welcome-user.ejs");
 			const html = await ejs.renderFile(templatePath, { name: user.name, email: user.email });
 			await transporter.sendMail({
 				from: config.email_sender,
 				to: user.email,
 				subject: "Welcome to Housely",
-				html
+				html,
 			});
+		} catch (mailError) {
+			console.error("Failed to send welcome email:", mailError);
 		}
 	}
 
