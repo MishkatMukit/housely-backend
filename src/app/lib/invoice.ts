@@ -156,8 +156,6 @@ const sendRentInvoiceMail = async (paymentId: string) => {
 				{ filename: `housely-invoice-${invoiceNo}.pdf`, content: pdf },
 			],
 		});
-
-		console.log(`[invoice] sent rent invoice ${invoiceNo} to ${recipient}`);
 	} catch (error) {
 		console.error("[invoice] failed to send rent invoice:", error);
 	}

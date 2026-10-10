@@ -11,24 +11,19 @@ const PORT = config.port;
 const main = async () => {
 	try {
 		await prisma.$connect();
-		console.log("Connected to the database successfully.");
 
 		if (!redisClient.isOpen) {
 			await redisClient.connect();
 		}
-		console.log("Connected to Redis successfully.");
 
 		await transporter.verify();
-		console.log("SMTP Server is ready to take messages");
 
-		app.listen(PORT, () => {
-			console.log(`server is listening on port ${PORT}`);
-		});
+		app.listen(PORT);
 
 		startLeaseCron();
 		startPaymentCron();
 	} catch (error) {
-		console.log("Error starting the server : ", error);
+		console.error("Error starting the server : ", error);
 		process.exit(1);
 	}
 };

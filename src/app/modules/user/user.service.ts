@@ -27,8 +27,6 @@ const uploadProfileImage = async (buffer: Buffer, userId: string) => {
             if (error) {
                 return reject(error)
             }
-            // return result
-            // console.log(result);
             if (!result) {
                 return reject(new Error("Cloudinary upload failed"))
             }

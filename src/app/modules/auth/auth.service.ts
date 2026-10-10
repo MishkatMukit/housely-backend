@@ -330,7 +330,6 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 
 		googleIdTokenPayload = ticket.getPayload();
 	} catch (error) {
-		console.log("Google ID Token Verification Failed", error);
 		throw new AppError("Invalid Or Expired Google ID Token", httpStatus.UNAUTHORIZED);
 	}
 

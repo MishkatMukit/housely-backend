@@ -12,13 +12,10 @@ import { monthKey, monthPeriodsBetween } from "../utils/paymentPeriods";
 // seeded as PENDING at creation).
 const activatePendingLeases = async () => {
 	const now = new Date();
-	const result = await prisma.lease.updateMany({
+	await prisma.lease.updateMany({
 		where: { status: LeaseStatus.PENDING, startDate: { lte: now } },
 		data: { status: LeaseStatus.ACTIVE },
 	});
-	if (result.count > 0) {
-		console.log(`[lease-cron] activated ${result.count} pending lease(s)`);
-	}
 };
 
 // Auto-complete leases whose endDate has passed, freeing the flat.
@@ -48,9 +45,6 @@ const completeExpiredLeases = async () => {
 					data: { status: PaymentStatus.FAILED },
 				}),
 			]);
-			console.log(
-				`[lease-cron] completed lease ${lease.id} and freed flat ${lease.flatId}`,
-			);
 		} catch (error) {
 			console.error(
 				`[lease-cron] failed to complete lease ${lease.id}:`,
@@ -117,9 +111,6 @@ const generateDueMonthlyPayments = async () => {
 			})),
 			skipDuplicates: true,
 		});
-		console.log(
-			`[lease-cron] created ${missing.length} monthly payment(s) for lease ${lease.id}`,
-		);
 	}
 };
 
@@ -138,8 +129,6 @@ export const startLeaseCron = () => {
 			console.error("[lease-cron] run failed:", error);
 		}
 	});
-
-	console.log("[lease-cron] scheduled to run every minute");
 };
 
 export const leaseCronJobs = {

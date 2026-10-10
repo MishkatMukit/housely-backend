@@ -13,7 +13,6 @@ const uploadProfileImage = catchAsync(async (req: Request, res: Response) => {
         throw new AppError("No File Uploaded", httpStatus.BAD_REQUEST);
     }
 
-    // console.log(req.file, "req.file");
     const result = await userService.uploadProfileImage(file?.buffer, userId)
 
     sendResponse(res, {

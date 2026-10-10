@@ -45,17 +45,11 @@ const reconcileStrandedPayments = async () => {
 					},
 				});
 				void invoiceService.sendRentInvoiceMail(payment.id);
-				console.log(
-					`[payment-cron] reconciled ${payment.id} -> COMPLETED (${status.trxID})`,
-				);
 			} else {
 				await prisma.payment.update({
 					where: { id: payment.id },
 					data: { status: PaymentStatus.FAILED },
 				});
-				console.log(
-					`[payment-cron] reconciled ${payment.id} -> FAILED`,
-				);
 			}
 		} catch (error) {
 			console.error(
@@ -79,6 +73,4 @@ export const startPaymentCron = () => {
 			console.error("[payment-cron] run failed:", error);
 		}
 	});
-
-	console.log("[payment-cron] scheduled to run every minute");
 };
